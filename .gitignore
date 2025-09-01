@@ -1,0 +1,61 @@
+# ====================
+# Python
+# ====================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+*.egg
+*.egg-info/
+dist/
+build/
+env/
+venv/
+ENV/
+.env
+*.log
+*.pot
+*.mo
+*.pyc
+
+# Byte-compiled / optimized / DLL files
+*.so
+*.dylib
+*.dll
+
+# ====================
+# Scala / sbt
+# ====================
+target/
+project/target/
+project/project/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+# IntelliJ IDEA / Eclipse
+.idea/
+*.iml
+*.ipr
+*.iws
+*.class
+*.log
+
+# ====================
+# Angular / Node
+# ====================
+node_modules/
+dist/
+tmp/
+out-tsc/
+.angular/
+package-lock.json
+yarn.lock
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage/
