@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+scrapy
+selenium
+webdriver-manager
+fake-useragent
