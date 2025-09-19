@@ -4,13 +4,14 @@ from scrapy.utils.project import get_project_settings
 from scrapers.spiders.coindesk_spider import CoinDeskSpider
 from scrapers.spiders.coingecko_spider import CoinGeckoSpider
 from twisted.internet import defer, asyncioreactor
+from twisted.internet.error import ReactorAlreadyInstalledError
 import os
 from pathlib import Path
 
 # Install Twisted asyncio reactor for compatibility with FastAPI
 try:
     asyncioreactor.install()
-except Exception:
+except ReactorAlreadyInstalledError:
     pass  # Reactor may already be installed
 
 def setup_crawler(output_dir: str) -> CrawlerRunner:
