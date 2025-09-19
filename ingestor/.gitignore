@@ -1,0 +1,36 @@
+# ---- Environnements virtuels ----
+.venv/
+venv/
+env/
+
+# ---- Données locales (scraper/builder) ----
+data/
+chk/
+
+# ---- Artefacts Python ----
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# ---- Fichiers d'environnement ----
+.env
+.env.*
+
+# ---- Build / distribution ----
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# ---- Logs ----
+*.log
+
+# ---- IDE / éditeur ----
+.vscode/
+.idea/
+
+# ---- Divers ----
+.DS_Store
+Thumbs.db
