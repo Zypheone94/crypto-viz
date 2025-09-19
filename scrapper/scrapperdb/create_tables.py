@@ -1,7 +1,7 @@
 import duckdb
 
 # Create or connect to the database
-conn = duckdb.connect('cryptodb.db')
+conn = duckdb.connect('cryptodb.duckdb')
 
 # Create the table
 conn.execute('''
