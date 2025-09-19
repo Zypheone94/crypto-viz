@@ -55,7 +55,7 @@ class CoinGeckoSpider(Spider):
         except Exception as e:
             self.logger.error(f'Error parsing CoinGecko API data: {e}')
             yield {
-                'id': f"coingecko_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                'id': f"coingecko_error_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",
                 'source': 'coingecko',
                 'type': 'error',
                 'error': str(e),
