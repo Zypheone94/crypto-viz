@@ -1,0 +1,18 @@
+services:
+  scraper:
+    build:
+      context: .
+      dockerfile: ingestor/scraper/Dockerfile
+    volumes:
+      - ./ingestor/scraper:/app/ingestor/scraper
+    command: python ingestor/scraper/main.py
+
+
+  builder:
+    build:
+      context: .
+      dockerfile: ingestor/builder/Dockerfile
+    volumes:
+      - ./ingestor/builder:/app/ingestor/builder
+    command: python ingestor/builder/main.py
+
