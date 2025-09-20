@@ -9,5 +9,3 @@ RUN pip install --upgrade pip
 RUN pip install .
 
 COPY ingestor/scraper ./ingestor/scraper
-
-CMD ["python", "ingestor/scraper/main.py"]

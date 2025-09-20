@@ -16,3 +16,14 @@ services:
       - ./ingestor/builder:/app/ingestor/builder
     command: python ingestor/builder/main.py
 
+
+  web:
+    build:
+      context: web
+      dockerfile: Dockerfile
+    volumes:
+      - ./web:/app/web
+      - /app/web/node_modules
+    ports:
+      - "4200:4200"
+    command: ng serve --host 0.0.0.0

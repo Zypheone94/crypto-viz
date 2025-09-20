@@ -9,5 +9,3 @@ RUN pip install --upgrade pip
 RUN pip install .
 
 COPY ingestor/builder ./ingestor/builder
-
-CMD ["python", "ingestor/builder/main.py"]
