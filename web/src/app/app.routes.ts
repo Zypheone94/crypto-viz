@@ -1,6 +1,10 @@
 import { Routes } from '@angular/router';
-import { Countdown } from '../components/countdown/countdown';
+import { Home } from './home/home';
+import { Analytics } from './analytics/analytics';
 
 export const routes: Routes = [
-    {path: "countdown", component: Countdown }
+    {path: "", redirectTo: "/home", pathMatch: "full"},
+    {path: "home", component: Home, title: "Crypto-Viz"},
+    {path: "analytics", component: Analytics, title: "Analytics"},
+    {path: "**", redirectTo: "/home"}
 ];

@@ -1,13 +1,26 @@
-import { Component, signal } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component } from '@angular/core';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
-  templateUrl: './app.html',
-  styleUrls: ['./app.css']
+  standalone: true,
+  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  template: `
+  <nav>
+      <a routerLink="/home" 
+         routerLinkActive="active">Accueil</a>
+      <a routerLink="/analytics" 
+         routerLinkActive="active">Analytics</a>
+    </nav>
+    
+    <router-outlet></router-outlet>
+  `,
+  styles: [`
+    .active { 
+      font-weight: bold; 
+      color: #007acc; 
+    }
+  `]
 })
 
-export class App {
-  protected readonly title = signal('web');
-}
+export class App {}
