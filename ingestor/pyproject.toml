@@ -23,6 +23,7 @@ dependencies = [
     "fake-useragent",
     "requests",
     "pydantic",
+    "kafka-python",
     "feedparser",
     "pytest"
 ]
