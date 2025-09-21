@@ -24,7 +24,7 @@ export class Analytics implements OnInit, OnDestroy{
 
   ngOnDestroy(): void {
     this.intervalSubscription.unsubscribe();
-    console.log("Composant démonté");
+    console.log("Component unmounted");
   }
 
 }
