@@ -24,7 +24,8 @@ dependencies = [
     "requests",
     "pydantic",
     "feedparser",
-    "pytest"
+    "pytest",
+    "fastapi[standard]"
 ]
 
 

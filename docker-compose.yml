@@ -5,7 +5,10 @@ services:
       dockerfile: ingestor/scraper/Dockerfile
     volumes:
       - ./ingestor/scraper:/app/ingestor/scraper
-    command: python ingestor/scraper/main.py
+    working_dir: /app/ingestor/scraper/
+    ports:
+      - "8080:8000"
+    command: python -m fastapi dev main.py --host 0.0.0.0 --port 8000
 
 
   builder:
