@@ -26,6 +26,9 @@ dependencies = [
     "kafka-python",
     "feedparser",
     "pytest"
+    "beautifulsoup4",
+    "lxml",
+    "python-dateutil",
 ]
 
 
