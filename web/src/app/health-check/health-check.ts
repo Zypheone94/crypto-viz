@@ -6,7 +6,6 @@ import { CommonModule } from '@angular/common';
   selector: 'app-health-check',
   imports: [CommonModule],
   standalone: true,
-  providers: [ApiService],
   templateUrl: './health-check.html',
   styleUrls: ['./health-check.css']
 })
