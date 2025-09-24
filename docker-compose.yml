@@ -8,7 +8,7 @@ services:
     working_dir: /app/ingestor/scraper/
     ports:
       - "8080:8000"
-    command: python -m uvicorn main:app --host 0.0.0.0 -port 8000 --reload
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 
 
