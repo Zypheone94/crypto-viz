@@ -1,0 +1,10 @@
+<h1>Health Check</h1>
+
+<p *ngIf="upTime && version">
+  Uptime: {{ upTime }} <br>
+  Version: {{ version }}
+</p>
+
+<p *ngIf="!upTime || !version">
+  Loading...
+</p>
