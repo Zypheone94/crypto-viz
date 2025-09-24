@@ -1,0 +1,15 @@
+<div>
+    <div *ngIf="currentState === componentState.LOADING" class="loading-container">
+        <mat-spinner></mat-spinner>
+        <p>Loading data...</p>
+    </div>
+
+    <div *ngIf="currentState === componentState.ERROR" class="error-container">
+        <p class="error-message">Error: {{ errorMessage }}</p>
+    </div>
+
+    <div *ngIf="currentState === componentState.READY" class="data-container">
+        <h2>Time Series Data</h2>
+        <pre>{{ data }}</pre>
+    </div>
+</div>

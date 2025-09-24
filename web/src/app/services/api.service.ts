@@ -13,4 +13,8 @@ export class ApiService {
   getHealthCheck(): Observable<any> {
     return this.http.get(`${this.baseUrl}/health/check`);
   }
+
+  getTimeseries(): Observable<any> {
+    return this.http.get(`${this.baseUrl}/metrics/timeseries`);
+  }
 }
