@@ -26,7 +26,8 @@ dependencies = [
     "kafka-python",
     "feedparser",
     "pytest",
-    "fastapi[standard]"
+    "fastapi[standard]",
+    "uvicorn[standard]"
 ]
 
 

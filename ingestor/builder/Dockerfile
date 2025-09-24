@@ -6,6 +6,6 @@ COPY ingestor/pyproject.toml .
 
 RUN pip install --upgrade pip
 
-RUN pip install .
+RUN pip install -e .
 
 COPY ingestor/builder ./ingestor/builder
