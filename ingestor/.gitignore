@@ -4,7 +4,9 @@ venv/
 env/
 
 # ---- Données locales (scraper/builder) ----
-data/
+!data/.gitkeep
+data/raw/*
+!data/clean/.gitkeep
 chk/
 
 # ---- Artefacts Python ----
