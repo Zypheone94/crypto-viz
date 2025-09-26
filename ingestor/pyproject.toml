@@ -25,7 +25,10 @@ dependencies = [
     "pydantic",
     "kafka-python",
     "feedparser",
-    "pytest"
+    "pytest",
+    "duckdb",
+    "polars",
+    "loguru"
 ]
 
 
