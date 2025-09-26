@@ -4,7 +4,7 @@ from loguru import logger
 import polars as pl
 from dotenv import load_dotenv
 HERE = pathlib.Path(__file__).resolve().parent
-load_dotenv(HERE.parent / ".env")
+load_dotenv(HERE.parent / "./.env")
 OUT_DIR = pathlib.Path(os.getenv("OUT_DIR", "../data/clean/parquet"))
 RAW_DIR = pathlib.Path(os.getenv("RAW_DIR", "../data/raw"))
 INGEST_SOURCE = os.getenv("INGEST_SOURCE", "kafka").lower()
@@ -27,27 +27,18 @@ def normalize(a: Dict) -> Dict:
         "fetched_at": a.get("fetched_at"),
     }
 def flush_batch(batch: List[Dict]) -> int:
-    """
-    - Dédup par id (intra + inter-batch)
-    - Parse published_at -> ts UTC
-    - Split valid/invalid (invalid -> _corrupt)
-    - Écrit Parquet partitionné par date
-    """
-    # Toujours initialiser ici
+
     if not batch:
         return 0
 
-    # --- dédup métier intra-batch ---
     dedup: dict[str, dict] = {}
     for r in batch:
-        # tolérance si 'id' absent
         rid = r.get("id")
         if not rid:
             rid = hashlib.sha1(((r.get("url") or "") + (r.get("title") or "")).encode("utf-8")).hexdigest()
             r["id"] = rid
         dedup[rid] = r
 
-    # --- dédup inter-batch en mémoire ---
     new_rows = [r for r in dedup.values() if r["id"] not in SEEN_IDS]
     if not new_rows:
         return 0
@@ -55,7 +46,6 @@ def flush_batch(batch: List[Dict]) -> int:
 
     df = pl.DataFrame(new_rows)
 
-    # --- parsing date robuste -> ts UTC ---
     df = df.with_columns([
         pl.col("published_at")
           .cast(pl.Utf8)
@@ -69,7 +59,6 @@ def flush_batch(batch: List[Dict]) -> int:
           .alias("ts")
     ])
 
-    # --- split valid/invalid ---
     invalid = (df.filter(pl.col("ts").is_null())
                  .with_columns(pl.col("published_at").alias("_corrupt_record"))
                  .select(["id","title","url","source","published_at","fetched_at","_corrupt_record"]))
@@ -78,7 +67,6 @@ def flush_batch(batch: List[Dict]) -> int:
                .with_columns(pl.col("ts").dt.date().alias("date"))
                .select(["id","ts","date","title","url","source","fetched_at"]))
 
-    # log + rejet des lignes corrompues (pas dans le parquet principal)
     if invalid.height > 0:
         rej_dir = OUT_DIR.parent / "_corrupt"
         rej_dir.mkdir(parents=True, exist_ok=True)
@@ -91,7 +79,6 @@ def flush_batch(batch: List[Dict]) -> int:
             "count": invalid.height, "reject_file": str(rej_path)
         }))
 
-    # --- écriture parquet uniquement pour 'valid' ---
     written = 0
     for key, g in valid.group_by("date"):
         date_value = key[0] if isinstance(key, tuple) else key
