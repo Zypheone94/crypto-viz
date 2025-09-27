@@ -1,14 +1,13 @@
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import JSONResponse
-from typing import Literal, Optional
+from typing import Literal
 from datetime import datetime
 import duckdb
 import glob
 import os
 
 
-# Initialisation du FastAPI app par Val
-app = FastAPI()
+router = APIRouter(prefix="/metrics")
 
 PARQUET_PATH = os.path.join(
     os.path.dirname(__file__), "../../data/clean/parquet/**/*.parquet"
@@ -20,7 +19,7 @@ def parse_datetime(dt_str: str) -> datetime:
     except Exception:
         raise HTTPException(status_code=400, detail=f"Invalid datetime: {dt_str}")
 
-@app.get("/metrics/timeseries")
+@router.get("/timeseries")
 def metrics_timeseries(
     from_: str = Query(..., alias="from"),
     to: str = Query(...),
@@ -31,8 +30,6 @@ def metrics_timeseries(
     dt_to = parse_datetime(to)
     if dt_from > dt_to:
         raise HTTPException(status_code=400, detail="'from' doit être <= 'to'")
-    if bucket not in {"hour", "day"}:
-        raise HTTPException(status_code=400, detail="Bucket invalide")
 
     # Récupération des fichiers Parquet
     files = glob.glob(PARQUET_PATH, recursive=True)
@@ -41,18 +38,18 @@ def metrics_timeseries(
 
     # Query DuckDB
     con = duckdb.connect(database=':memory:')
-    con.execute(f"""
+    # Construire une liste de chemins correctement quotés
+    parquet_list = ", ".join(f"'{f}'" for f in files)
+    query = f"""
         SELECT 
-            date_trunc('{bucket}', ts) AS t, 
+            date_trunc('{bucket}', ts) AS t,
             count(*) AS value
-        FROM read_parquet({files})
+        FROM read_parquet([{parquet_list}])
         WHERE ts >= ? AND ts <= ?
         GROUP BY t
         ORDER BY t
-    """, [dt_from, dt_to])
+    """
+    con.execute(query, [dt_from, dt_to])
     rows = con.fetchall()
     result = [{"t": r[0].isoformat(), "value": r[1]} for r in rows]
-
     return JSONResponse(content=result, status_code=200)
-
-    # Fin du code par Val
