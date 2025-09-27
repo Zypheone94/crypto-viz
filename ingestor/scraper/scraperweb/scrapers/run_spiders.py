@@ -1,8 +1,8 @@
 from scrapy.crawler import CrawlerRunner
 from scrapy.utils.log import configure_logging
 from scrapy.utils.project import get_project_settings
-from scrapers.spiders.coindesk_spider import CoinDeskSpider
-from scrapers.spiders.coingecko_spider import CoinGeckoSpider
+from .spiders.coindesk_spider import CoinDeskSpider
+from .spiders.coingecko_spider import CoinGeckoSpider
 from twisted.internet import defer, asyncioreactor
 from twisted.internet.error import ReactorAlreadyInstalledError
 import os
@@ -39,7 +39,7 @@ def setup_crawler(output_dir: str) -> CrawlerRunner:
         'COOKIES_ENABLED': False,
         'TELNETCONSOLE_ENABLED': False,
         'ITEM_PIPELINES': {
-            'scrapers.pipelines.CryptoDataPipeline': 300,
+            'scraper.pipelines.CryptoDataPipeline': 300,
         },
     })
 

@@ -6,6 +6,7 @@ import requests
 from xml.etree import ElementTree as ET
 
 from .models import ArticleModel
+from .html_utils import strip_html_tags
 
 
 COINDESK_RSS = "https://www.coindesk.com/arc/outboundfeeds/rss/"
@@ -62,25 +63,109 @@ def fetch_rss(url: str, retries: int = 3, backoffs: List[int] = None, timeout: i
             attempt += 1
 
 
+def fetch_article_content(url: str, max_length: int = 10000) -> str:
+    """Attempt to fetch the content of an article by visiting the URL."""
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Try to find article content - common patterns
+        content_selectors = [
+            'article', 
+            '.article-content', 
+            '.post-content', 
+            '.entry-content', 
+            '.content', 
+            '#content',
+            'main'
+        ]
+        
+        for selector in content_selectors:
+            article_content = soup.select_one(selector)
+            if article_content:
+                # Extract text without scripts, styles...
+                for script in article_content.find_all(['script', 'style']):
+                    script.extract()
+                text = article_content.get_text(separator=' ', strip=True)
+                if len(text) > max_length:
+                    text = text[:max_length] + '...'
+                return text
+        
+        # Fallback to meta description
+        meta_desc = soup.find('meta', attrs={'name': 'description'})
+        if meta_desc and meta_desc.get('content'):
+            return meta_desc['content']
+            
+        body = soup.body
+        if body:
+            text = body.get_text(separator=' ', strip=True)
+            if len(text) > max_length:
+                text = text[:max_length] + '...'
+            return text
+        
+        return "Failed to extract content"
+    except Exception as e:
+        return f"Error fetching content: {str(e)}"
+
 def parse_rss(xml_text: str, source: str) -> Iterable[ArticleModel]:
     root = ET.fromstring(xml_text)
     channel = root.find("channel")
     items = channel.findall("item") if channel is not None else root.findall("item")
 
     now_utc = datetime.now(timezone.utc)
+    
+    content_ns = "{http://purl.org/rss/1.0/modules/content/}"
+    dc_ns = "{http://purl.org/dc/elements/1.1/}"
+    
     for item in items:
         title_el = item.find("title")
         link_el = item.find("link")
-        pub_el = item.find("pubDate") or item.find("published") or item.find("dc:date")
-        desc_el = item.find("description") or item.find("content:encoded")
-
+        pub_el = item.find("pubDate") or item.find("published") or item.find(f"{dc_ns}date")
+        
         if title_el is None or link_el is None:
             continue
 
         title = (title_el.text or "").strip()
         link = (link_el.text or "").strip()
         published_at = _iso_to_dt((pub_el.text or "").strip()) if pub_el is not None else now_utc
-        content = (desc_el.text or "").strip() if desc_el is not None else None
+        
+        # Try multiple ways to find content from RSS
+        content = None
+        
+        #content:encoded namespace
+        encoded_el = item.find(f"{content_ns}encoded")
+        if encoded_el is not None:
+            content = ''.join(encoded_el.itertext()).strip()
+        
+        #description element
+        if not content:
+            desc_el = item.find("description")
+            if desc_el is not None:
+                content = ''.join(desc_el.itertext()).strip()
+        
+        #description
+        if not content:
+            dc_desc_el = item.find(f"{dc_ns}description")
+            if dc_desc_el is not None:
+                content = ''.join(dc_desc_el.itertext()).strip()
+
+        if not content or len(content) < 100: 
+            try:
+                content = fetch_article_content(link)
+            except Exception as e:
+                print(f"Error fetching content for {link}: {e}")
+                # Keep whatever content we found in the RSS
+        
+        # Strip HTML tags from content
+        if content:
+            content = strip_html_tags(content)
 
         yield ArticleModel(
             id=ArticleModel.generate_id(link, title),
