@@ -108,3 +108,6 @@ build/
 
 ### Scala ###
 .bsp/
+
+### Angular Env ###
+*env.ts
