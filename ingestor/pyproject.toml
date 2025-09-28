@@ -27,7 +27,8 @@ dependencies = [
     "feedparser",
     "pytest",
     "fastapi[standard]",
-    "uvicorn[standard]"
+    "uvicorn[standard]",
+    "duckdb"
 ]
 
 
