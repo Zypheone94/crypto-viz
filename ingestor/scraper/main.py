@@ -4,7 +4,7 @@ from api.routes import health
 import os
 from dotenv import load_dotenv
 
-load_dotenv('../../.env')
+load_dotenv(os.path.join(os.path.dirname(__file__), '../../.env'))
 
 app = FastAPI()
 

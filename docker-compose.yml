@@ -8,7 +8,7 @@ services:
     working_dir: /app/ingestor/scraper/
     ports:
       - "${SCRAPER_PORT}:8080"
-    command: python -m uvicorn main:app --host 0.0.0.0 --port ${SCRAPER_PORT} --reload
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8080 --reload
 
   builder:
     build:
@@ -51,4 +51,4 @@ services:
       KAFKA_NUM_PARTITIONS: 3
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     ports:
-      - "9094:${KAFKA_PORT}"
+      - "${KAFKA_PORT}:9094"

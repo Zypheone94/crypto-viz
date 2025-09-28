@@ -97,7 +97,7 @@ En suivant ce README, un nouveau développeur doit :
 
 ## Env
 
-Le .env du projet est unique et se trouve à la racine de ce dernier, un .env.exampel est disponible avec
+Le .env du projet est unique et se trouve à la racine de ce dernier, un .env.exemple est disponible avec
 l'ensemble des var à fournir afin d'avoir un projet fonctionnement correctement.
 
 ### Particularité d'Angular
