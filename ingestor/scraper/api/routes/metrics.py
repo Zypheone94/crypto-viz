@@ -7,7 +7,7 @@ import glob
 import os
 
 
-router = APIRouter(prefix="/metrics")
+router = APIRouter(prefix="/metrics", tags=["metrics"])
 
 PARQUET_PATH = os.path.join(
     os.path.dirname(__file__), "../../data/clean/parquet/**/*.parquet"
@@ -20,7 +20,7 @@ def parse_datetime(dt_str: str) -> datetime:
         raise HTTPException(status_code=400, detail=f"Invalid datetime: {dt_str}")
 
 @router.get("/timeseries")
-def metrics_timeseries(
+def get_timeseries(
     from_: str = Query(..., alias="from"),
     to: str = Query(...),
     bucket: Literal["hour", "day"] = Query(...)
