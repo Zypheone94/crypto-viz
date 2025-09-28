@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import health
+from api.routes import health, metrics
 from api.utils.middleware import Middleware
 
 app = FastAPI()
@@ -20,6 +20,7 @@ app.add_middleware(
 app.add_middleware(Middleware)
 
 app.include_router(health.router)
+app.include_router(metrics.router)
 """
 REMINDER : You must start your api path by : 
 - API (if you do something with the api, health, etc...)
@@ -27,6 +28,7 @@ REMINDER : You must start your api path by :
 - Builder (if your working with the scraper)
 it is necessary for the service in the logger to work
 """
+
 
 @app.get("/")
 async def root():

@@ -19,6 +19,7 @@ ENV/
 *.pot
 *.mo
 *.pyc
+cryptodb.py
 
 # Byte-compiled / optimized / DLL files
 *.so
