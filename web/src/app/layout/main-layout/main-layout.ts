@@ -9,7 +9,7 @@ import { FormsModule } from '@angular/forms';
   selector: 'app-main-layout',
   standalone: true,
   imports: [CommonModule, RouterModule, FormsModule],
-  template: './main-layout.html',
+  templateUrl: './main-layout.html',
   styleUrls: ['./main-layout.css'],
 })
 export class MainLayoutComponent implements OnInit {

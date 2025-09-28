@@ -43,7 +43,11 @@ export class TimeSeries implements OnInit {
   constructor(private api: ApiService) {}
 
   ngOnInit() {
-    this.api.getTimeseries().subscribe((data) => {
+    this.api.getTimeseries({
+      from: '2023-01-01T00:00:00Z',
+      to: '2023-01-07T23:59:59Z',
+      bucket: 'day',
+    }).subscribe((data) => {
       this.data = data;
       console.log('Time Series Data:', data);
     });
