@@ -4,7 +4,7 @@ from loguru import logger
 import polars as pl
 from dotenv import load_dotenv
 HERE = pathlib.Path(__file__).resolve().parent
-load_dotenv(HERE.parent / ".env")
+load_dotenv(HERE.parent / "./.env")
 OUT_DIR = pathlib.Path(os.getenv("OUT_DIR", "../data/clean/parquet"))
 RAW_DIR = pathlib.Path(os.getenv("RAW_DIR", "../data/raw"))
 INGEST_SOURCE = os.getenv("INGEST_SOURCE", "kafka").lower()
@@ -26,13 +26,19 @@ def normalize(a: Dict) -> Dict:
         "published_at": a.get("published_at"),
         "fetched_at": a.get("fetched_at"),
     }
-
 def flush_batch(batch: List[Dict]) -> int:
+
     if not batch:
         return 0
-    dedup = {}
+
+    dedup: dict[str, dict] = {}
     for r in batch:
-        dedup[r["id"]] = r
+        rid = r.get("id")
+        if not rid:
+            rid = hashlib.sha1(((r.get("url") or "") + (r.get("title") or "")).encode("utf-8")).hexdigest()
+            r["id"] = rid
+        dedup[rid] = r
+
     new_rows = [r for r in dedup.values() if r["id"] not in SEEN_IDS]
     if not new_rows:
         return 0
@@ -42,26 +48,53 @@ def flush_batch(batch: List[Dict]) -> int:
 
     df = df.with_columns([
         pl.col("published_at")
+          .cast(pl.Utf8)
           .str.replace(r"Z$", "+00:00")
           .str.strptime(pl.Datetime, format="%Y-%m-%dT%H:%M:%S%z", strict=False)
-          .alias("ts")
+          .alias("ts_parsed")
     ]).with_columns([
-        pl.col("ts").dt.convert_time_zone("UTC"),
-        pl.col("ts").dt.date().alias("date")
-    ]).select(["id","ts","date","title","url","source","fetched_at"])
+        pl.when(pl.col("ts_parsed").is_not_null())
+          .then(pl.col("ts_parsed").dt.convert_time_zone("UTC"))
+          .otherwise(None)
+          .alias("ts")
+    ])
+
+    invalid = (df.filter(pl.col("ts").is_null())
+                 .with_columns(pl.col("published_at").alias("_corrupt_record"))
+                 .select(["id","title","url","source","published_at","fetched_at","_corrupt_record"]))
+
+    valid = (df.filter(pl.col("ts").is_not_null())
+               .with_columns(pl.col("ts").dt.date().alias("date"))
+               .select(["id","ts","date","title","url","source","fetched_at"]))
+
+    if invalid.height > 0:
+        rej_dir = OUT_DIR.parent / "_corrupt"
+        rej_dir.mkdir(parents=True, exist_ok=True)
+        rej_path = rej_dir / f"reject-{int(time.time())}.ndjson"
+        with open(rej_path, "w", encoding="utf-8") as f:
+            for rec in invalid.to_dicts():
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        logger.warning(json.dumps({
+            "service":"builder","mode":INGEST_SOURCE,"msg":"corrupt_rows",
+            "count": invalid.height, "reject_file": str(rej_path)
+        }))
 
     written = 0
-    for key, g in df.group_by("date"):
+    for key, g in valid.group_by("date"):
         date_value = key[0] if isinstance(key, tuple) else key
         folder = getattr(date_value, "isoformat", lambda: str(date_value))()
         outdir = OUT_DIR / f"date={folder}"
         outdir.mkdir(parents=True, exist_ok=True)
         outpath = outdir / f"part-{int(time.time())}.parquet"
         g.write_parquet(outpath)
-        logger.info(json.dumps({"service":"builder","mode":INGEST_SOURCE,"msg":"parquet_written",
-                                "date":folder,"rows":g.height,"path":str(outpath)}))
+        logger.info(json.dumps({
+            "service":"builder","mode":INGEST_SOURCE,"msg":"parquet_written",
+            "date": folder, "rows": g.height, "path": str(outpath)
+        }))
         written += g.height
+
     return written
+
 
 def kafka_source() -> Iterable[Dict]:
     from kafka import KafkaConsumer
