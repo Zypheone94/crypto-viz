@@ -2,11 +2,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import health, metrics
 from api.utils.middleware import Middleware
+import os
+from dotenv import load_dotenv
+
+load_dotenv(os.path.join(os.path.dirname(__file__), '../../.env'))
 
 app = FastAPI()
 
+angular_port = os.getenv("ANGULAR_PORT")
 origins = [
-    'http://localhost:4200'
+    f'http://localhost:{angular_port}'
 ]
 
 app.add_middleware(

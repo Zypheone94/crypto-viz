@@ -94,3 +94,23 @@ En suivant ce README, un nouveau développeur doit :
 2. Lancer `make bootstrap && make up`
 3. Aller sur `http://localhost:4200`
 4. Voir une première courbe alimentée par les flux RSS
+
+## Env
+
+Le .env du projet est unique et se trouve à la racine de ce dernier, un .env.exemple est disponible avec
+l'ensemble des var à fournir afin d'avoir un projet fonctionnement correctement.
+
+### Particularité d'Angular
+
+  Angular ne proposant pas nativement de solution pur les variable d'environnement, un script va aller chercher les variable
+  souhaitez depuis le *.env*, ces dernières sont stipulés dans *web/set-env.js*, si il vous faut ajouter
+  des variables dans le projet angular ça sera par ici.
+  
+### Docker
+
+  Pour le docker les variable sont simplement récupérées
+  
+### Python
+
+  Pour les variables d'env, python va les récupérer grâve à la lib : *python-dotenv* grace à un chemin littéral
+  spécifié dans le main.py du *scraper/*
