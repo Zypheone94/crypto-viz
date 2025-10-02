@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from datetime import datetime, timezone
 
 router = APIRouter(
-    prefix="/health",
+    prefix="/api/health",
     tags=["health"]
 )
 
