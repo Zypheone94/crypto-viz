@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { ApiService } from "../services/api.service";
+import { ApiService } from '../../services/api.service';
 import { CommonModule } from '@angular/common';
 
 @Component({
@@ -7,7 +7,7 @@ import { CommonModule } from '@angular/common';
   imports: [CommonModule],
   standalone: true,
   templateUrl: './health-check.html',
-  styleUrls: ['./health-check.css']
+  styleUrls: ['./health-check.css'],
 })
 export class HealthCheck implements OnInit {
   upTime: any;
@@ -16,12 +16,10 @@ export class HealthCheck implements OnInit {
   constructor(private api: ApiService) {}
 
   ngOnInit() {
-     this.api.getHealthCheck().subscribe((data) => {
+    this.api.getHealthCheck().subscribe((data) => {
       this.upTime = data.upTime;
       this.version = data.version;
       console.log(data);
     });
   }
-
-
 }

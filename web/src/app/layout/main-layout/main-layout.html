@@ -1,0 +1,141 @@
+<div class="layout-container">
+  <!-- Header compact -->
+  <header class="header small-header">
+    <div class="header-left">
+      <div class="logo">
+        <span class="logo-icon">🚀</span>
+        <h1 class="app-title">Mon App</h1>
+      </div>
+
+      <!-- Navigation -->
+      <nav class="header-nav">
+        <a
+          *ngFor="let item of navItems"
+          [routerLink]="item.route"
+          [class.active]="isActiveRoute(item.route)"
+          class="nav-link"
+          (click)="onNavClick(item.route)"
+        >
+          <span class="nav-icon">{{ item.icon }}</span>
+          <span class="nav-text">{{ item.label }}</span>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="main-container">
+    <!-- Sidebar toujours affichée -->
+    <aside class="filters-sidebar">
+      <div class="sidebar-header">
+        <h3>🎛️ Options</h3>
+      </div>
+
+      <div class="filters-content">
+        <!-- Contenu spécifique à Analytics -->
+        <ng-container *ngIf="selectedTab === 'analytics'; else emptySidebar">
+          <div class="filter-category">
+            <h4>📅 Période</h4>
+            <div class="filter-options">
+              <label class="radio-option">
+                <input
+                  type="radio"
+                  name="dateRange"
+                  value="last-7-days"
+                  [(ngModel)]="filterValues.dateRange"
+                  (change)="updateFilter('dateRange', 'last-7-days')"
+                />
+                <span class="radio-custom"></span>
+                <span class="option-text">7 derniers jours</span>
+              </label>
+              <label class="radio-option">
+                <input
+                  type="radio"
+                  name="dateRange"
+                  value="last-30-days"
+                  [(ngModel)]="filterValues.dateRange"
+                  (change)="updateFilter('dateRange', 'last-30-days')"
+                />
+                <span class="radio-custom"></span>
+                <span class="option-text">30 derniers jours</span>
+              </label>
+              <label class="radio-option">
+                <input
+                  type="radio"
+                  name="dateRange"
+                  value="last-3-months"
+                  [(ngModel)]="filterValues.dateRange"
+                  (change)="updateFilter('dateRange', 'last-3-months')"
+                />
+                <span class="radio-custom"></span>
+                <span class="option-text">3 derniers mois</span>
+              </label>
+
+              <!-- Période personnalisée -->
+              <label class="radio-option">
+                <input
+                  type="radio"
+                  name="dateRange"
+                  value="custom"
+                  [(ngModel)]="filterValues.dateRange"
+                  (change)="updateFilter('dateRange', 'custom')"
+                />
+                <span class="radio-custom"></span>
+                <span class="option-text">Choisir une période</span>
+              </label>
+              <div *ngIf="filterValues.dateRange === 'custom'" class="custom-date-range">
+                <input
+                  type="date"
+                  [(ngModel)]="filterValues.startDate"
+                  (change)="updateFilter('startDate', filterValues.startDate)"
+                />
+                <span>→</span>
+                <input
+                  type="date"
+                  [(ngModel)]="filterValues.endDate"
+                  (change)="updateFilter('endDate', filterValues.endDate)"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="filter-category">
+            <h4>🏷️ Catégorie</h4>
+            <div class="filter-pills">
+              <button
+                *ngFor="let cat of ['all', 'web', 'mobile', 'desktop']"
+                class="pill-btn"
+                [class.active]="filterValues.category === cat"
+                (click)="updateFilter('category', cat)"
+              >
+                {{ cat === 'all' ? 'Toutes' : (cat | titlecase) }}
+              </button>
+            </div>
+          </div>
+
+          <div class="filter-actions">
+            <button class="reset-btn" (click)="resetFilters()">🔄 Réinitialiser</button>
+          </div>
+        </ng-container>
+
+        <!-- Contenu vide ou placeholder -->
+        <ng-template #emptySidebar>
+          <p class="placeholder">Aucun filtre disponible pour cette page.</p>
+        </ng-template>
+      </div>
+    </aside>
+
+    <!-- Corps principal -->
+    <main class="main-content">
+      <div class="content-header">
+        <div class="page-title">
+          <h2>{{ getPageTitle() }}</h2>
+          <p class="page-description">{{ getPageDescription() }}</p>
+        </div>
+      </div>
+
+      <div class="content-body">
+        <router-outlet></router-outlet>
+      </div>
+    </main>
+  </div>
+</div>

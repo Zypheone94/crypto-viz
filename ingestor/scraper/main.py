@@ -5,9 +5,10 @@ from api.utils.middleware import Middleware
 import os
 from dotenv import load_dotenv
 
-load_dotenv(os.path.join(os.path.dirname(__file__), '../../.env'))
-
 app = FastAPI()
+
+env_path = os.path.join(os.path.dirname(__file__), '../../../.env')
+load_dotenv(env_path)
 
 angular_port = os.getenv("ANGULAR_PORT")
 origins = [
