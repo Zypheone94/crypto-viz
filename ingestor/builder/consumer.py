@@ -3,6 +3,15 @@ from typing import Iterable, Dict, List
 from loguru import logger
 import polars as pl
 from dotenv import load_dotenv
+import re
+#utilitaire
+def _clean_text(s: str | None) -> str:
+    if not s:
+        return ""
+    s = s.encode("utf-8", errors="ignore").decode("utf-8")
+    s = re.sub(r"\s+", " ", s.strip())
+    return s
+
 HERE = pathlib.Path(__file__).resolve().parent
 load_dotenv(HERE.parent / "./.env")
 OUT_DIR = pathlib.Path(os.getenv("OUT_DIR", "../data/clean/parquet"))
@@ -66,6 +75,12 @@ def flush_batch(batch: List[Dict]) -> int:
     valid = (df.filter(pl.col("ts").is_not_null())
                .with_columns(pl.col("ts").dt.date().alias("date"))
                .select(["id","ts","date","title","url","source","fetched_at"]))
+    valid = valid.with_columns([
+        pl.col("title").map_elements(_clean_text, return_dtype=pl.Utf8),
+        pl.col("url").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
+        pl.col("source").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
+    ])
+    valid = valid.select(["id", "ts", "date", "title", "url", "source", "fetched_at"])
 
     if invalid.height > 0:
         rej_dir = OUT_DIR.parent / "_corrupt"
@@ -141,16 +156,31 @@ def main():
     src = choose_source()
     batch, t0 = [], time.time()
 
-    for rec in src:
-        batch.append(rec)
-        now = time.time()
-        if len(batch) >= BATCH_MAX_MSG or (now - t0) >= BATCH_MAX_SEC:
+    try:
+        for rec in src:
+            batch.append(rec)
+            now = time.time()
+            if len(batch) >= BATCH_MAX_MSG or (now - t0) >= BATCH_MAX_SEC:
+                try:
+                    n = flush_batch(batch)
+                except Exception as e:
+                    logger.error(json.dumps(
+                        {"service": "builder", "mode": INGEST_SOURCE, "msg": "flush_failed", "error": str(e)}))
+                    n = 0
+                logger.info(json.dumps(
+                    {"service": "builder", "mode": INGEST_SOURCE, "msg": "batch_flushed", "batch_size": len(batch),
+                     "rows_written": n}))
+                batch.clear();
+                t0 = now
+    except KeyboardInterrupt:
+        logger.info(json.dumps({"service": "builder", "msg": "shutdown_requested"}))
+    finally:
+        if batch:
             n = flush_batch(batch)
-            logger.info(json.dumps({"service":"builder","mode":INGEST_SOURCE,
-                                    "msg":"batch_flushed","batch_size":len(batch),
-                                    "rows_written":n}))
-            batch.clear()
-            t0 = now
+            logger.info(json.dumps(
+                {"service": "builder", "mode": INGEST_SOURCE, "msg": "final_flush", "batch_size": len(batch),
+                 "rows_written": n}))
+
 
 if __name__ == "__main__":
     main()
