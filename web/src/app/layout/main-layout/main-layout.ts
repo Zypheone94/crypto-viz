@@ -4,6 +4,7 @@ import { filter } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { StoreService } from '../../services/store.service';
 
 @Component({
   selector: 'app-main-layout',
@@ -28,7 +29,10 @@ export class MainLayoutComponent implements OnInit {
     category: 'all',
   };
 
-  constructor(private router: Router) {}
+  constructor(
+    private router: Router,
+    private storeService: StoreService,
+  ) {}
 
   ngOnInit() {
     console.log('🔍 URL au démarrage:', this.router.url);
@@ -42,37 +46,30 @@ export class MainLayoutComponent implements OnInit {
       });
 
     this.updateSelectedTab(this.router.url);
+    this.sendData();
   }
 
   private updateSelectedTab(url: string) {
-    console.log('🔍 URL reçue pour mise à jour:', url);
-
     const segments = url.split('/').filter((segment) => segment);
-    console.log('🔍 Segments extraits:', segments);
 
     if (segments.length === 0) {
       this.selectedTab = 'home';
     } else {
       this.selectedTab = segments[segments.length - 1];
     }
-
-    console.log('✅ Selected tab mis à jour:', this.selectedTab);
   }
 
   isActiveRoute(route: string): boolean {
     const isActive = this.selectedTab === route;
-    console.log(`🔍 Route ${route} active?`, isActive, '(selectedTab:', this.selectedTab, ')');
     return isActive;
   }
 
   onNavClick(route: string) {
-    console.log('👆 Clic sur navigation:', route);
     this.selectedTab = route;
   }
 
   updateFilter(filterName: string, value: any) {
     (this.filterValues as any)[filterName] = value;
-    console.log('🎛️ Filtre mis à jour:', filterName, value);
   }
 
   resetFilters() {
@@ -82,7 +79,6 @@ export class MainLayoutComponent implements OnInit {
       endDate: '',
       category: 'all',
     };
-    console.log('🔄 Filtres réinitialisés');
   }
 
   getPageTitle(): string {
@@ -101,5 +97,9 @@ export class MainLayoutComponent implements OnInit {
       'health-check': 'État du système et performances',
     };
     return descriptions[this.selectedTab] || '';
+  }
+
+  sendData() {
+    this.storeService.setData('Hello from MainLayoutComponent');
   }
 }
