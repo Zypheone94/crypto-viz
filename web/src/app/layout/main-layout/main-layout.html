@@ -41,33 +41,30 @@
                   type="radio"
                   name="dateRange"
                   value="last-7-days"
-                  [(ngModel)]="filterValues.dateRange"
-                  (change)="updateFilter('dateRange', 'last-7-days')"
+                  (change)="updateFilter('1h')"
                 />
                 <span class="radio-custom"></span>
-                <span class="option-text">7 derniers jours</span>
+                <span class="option-text">Dernière heure</span>
               </label>
               <label class="radio-option">
                 <input
                   type="radio"
                   name="dateRange"
                   value="last-30-days"
-                  [(ngModel)]="filterValues.dateRange"
-                  (change)="updateFilter('dateRange', 'last-30-days')"
+                  (change)="updateFilter('1d')"
                 />
                 <span class="radio-custom"></span>
-                <span class="option-text">30 derniers jours</span>
+                <span class="option-text">Dernier jour</span>
               </label>
               <label class="radio-option">
                 <input
                   type="radio"
                   name="dateRange"
                   value="last-3-months"
-                  [(ngModel)]="filterValues.dateRange"
-                  (change)="updateFilter('dateRange', 'last-3-months')"
+                  (change)="updateFilter('3d')"
                 />
                 <span class="radio-custom"></span>
-                <span class="option-text">3 derniers mois</span>
+                <span class="option-text">3 derniers jours</span>
               </label>
 
               <!-- Période personnalisée -->
@@ -76,39 +73,20 @@
                   type="radio"
                   name="dateRange"
                   value="custom"
-                  [(ngModel)]="filterValues.dateRange"
-                  (change)="updateFilter('dateRange', 'custom')"
+                  (change)="updateFilter('custom')"
                 />
                 <span class="radio-custom"></span>
                 <span class="option-text">Choisir une période</span>
               </label>
-              <div *ngIf="filterValues.dateRange === 'custom'" class="custom-date-range">
+              <div *ngIf="true" class="custom-date-range">
                 <input
                   type="date"
-                  [(ngModel)]="filterValues.startDate"
-                  (change)="updateFilter('startDate', filterValues.startDate)"
+                  [(ngModel)]="filterValues.from"
+                  (change)="updateFilter('from')"
                 />
                 <span>→</span>
-                <input
-                  type="date"
-                  [(ngModel)]="filterValues.endDate"
-                  (change)="updateFilter('endDate', filterValues.endDate)"
-                />
+                <input type="date" [(ngModel)]="filterValues.to" (change)="updateFilter('to')" />
               </div>
-            </div>
-          </div>
-
-          <div class="filter-category">
-            <h4>🏷️ Catégorie</h4>
-            <div class="filter-pills">
-              <button
-                *ngFor="let cat of ['all', 'web', 'mobile', 'desktop']"
-                class="pill-btn"
-                [class.active]="filterValues.category === cat"
-                (click)="updateFilter('category', cat)"
-              >
-                {{ cat === 'all' ? 'Toutes' : (cat | titlecase) }}
-              </button>
             </div>
           </div>
 

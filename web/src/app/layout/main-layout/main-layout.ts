@@ -23,10 +23,9 @@ export class MainLayoutComponent implements OnInit {
   ];
 
   filterValues = {
-    dateRange: 'last-7-days',
-    startDate: '',
-    endDate: '',
-    category: 'all',
+    from: '',
+    to: '',
+    bucket: '',
   };
 
   constructor(
@@ -35,18 +34,14 @@ export class MainLayoutComponent implements OnInit {
   ) {}
 
   ngOnInit() {
-    console.log('🔍 URL au démarrage:', this.router.url);
-
     // Écouter les changements de route
     this.router.events
       .pipe(filter((event) => event instanceof NavigationEnd))
       .subscribe((event: NavigationEnd) => {
-        console.log('🔍 Navigation détectée:', event.url);
         this.updateSelectedTab(event.url);
       });
 
     this.updateSelectedTab(this.router.url);
-    this.sendData();
   }
 
   private updateSelectedTab(url: string) {
@@ -68,16 +63,38 @@ export class MainLayoutComponent implements OnInit {
     this.selectedTab = route;
   }
 
-  updateFilter(filterName: string, value: any) {
-    (this.filterValues as any)[filterName] = value;
+  substractTime(date: Date, value: number, unit: 'hour' | 'day'): string {
+    const msPerHour = 60 * 60 * 1000;
+    const msPerDay = 24 * msPerHour;
+
+    const ms = unit === 'hour' ? value * msPerHour : value * msPerDay;
+    return new Date(date.getTime() - ms).toISOString();
+  }
+
+  updateFilter(value: any) {
+    const now = new Date();
+
+    const periods: Record<string, { value: number; unit: 'hour' | 'day' }> = {
+      '1h': { value: 1, unit: 'hour' },
+      '1d': { value: 1, unit: 'day' },
+      '3d': { value: 3, unit: 'day' },
+    };
+
+    const period = periods[value];
+    if (period) {
+      this.filterValues.from = this.substractTime(now, period.value, period.unit);
+      this.filterValues.to = now.toISOString();
+      this.filterValues.bucket = period.unit;
+    }
+
+    this.sendData(this.filterValues);
   }
 
   resetFilters() {
     this.filterValues = {
-      dateRange: 'last-7-days',
-      startDate: '',
-      endDate: '',
-      category: 'all',
+      from: '',
+      to: '',
+      bucket: '',
     };
   }
 
@@ -99,7 +116,7 @@ export class MainLayoutComponent implements OnInit {
     return descriptions[this.selectedTab] || '';
   }
 
-  sendData() {
-    this.storeService.setData('Hello from MainLayoutComponent');
+  sendData(data: any) {
+    this.storeService.setData(data);
   }
 }

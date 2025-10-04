@@ -2,7 +2,6 @@ import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { interval, Subscription } from 'rxjs';
 import { TimeSeries } from './components/time-series';
-import { StoreService } from '../../services/store.service';
 
 @Component({
   selector: 'app-analytics',
@@ -14,7 +13,7 @@ import { StoreService } from '../../services/store.service';
 export class Analytics implements OnInit, OnDestroy {
   data: any = null;
 
-  constructor(private storeService: StoreService) {}
+  constructor() {}
 
   // Subscription to manage the interval
   private intervalSubscription: Subscription = new Subscription();
@@ -25,7 +24,6 @@ export class Analytics implements OnInit, OnDestroy {
     this.intervalSubscription = interval(this.intervalDuration).subscribe((n) => {
       console.log('tick', n);
     });
-    this.data = this.storeService.getData();
   }
 
   ngOnDestroy(): void {
