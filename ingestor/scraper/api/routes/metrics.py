@@ -68,7 +68,7 @@ def get_top(
     if dt_from > dt_to:
         raise HTTPException(status_code=400, detail="'from' doit être <= 'to'")
 
-    # Validation spécifique du limit pour retourner un message 400 personnalisé
+    # Validation spécifique du limit pour retourner un message 400
     try:
         limit_int = int(limit)
     except Exception:
@@ -92,11 +92,11 @@ def get_top(
           AND source IS NOT NULL
         GROUP BY source
         ORDER BY value DESC
-        LIMIT {limit_int}
+        LIMIT ?
     """
 
     with duckdb.connect(database=":memory:") as con:
-        con.execute(query, [dt_from, dt_to])
+        con.execute(query, [dt_from, dt_to, limit_int])
         rows = con.fetchall()
 
     result = [{"source": r[0], "value": r[1]} for r in rows]
