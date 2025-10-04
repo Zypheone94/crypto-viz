@@ -6,6 +6,8 @@ import duckdb
 import glob
 import os
 
+from scraper.api.utils.duckdb_client import read_latest_snapshot
+
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 
@@ -53,3 +55,8 @@ def get_timeseries(
     rows = con.fetchall()
     result = [{"t": r[0].isoformat(), "value": r[1]} for r in rows]
     return JSONResponse(content=result, status_code=200)
+
+@router.get("/latest")
+def get_latest():
+    snapshot = read_latest_snapshot()
+    return JSONResponse(content=snapshot, status_code=200)
