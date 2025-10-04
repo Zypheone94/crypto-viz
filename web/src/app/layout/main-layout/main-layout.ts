@@ -28,6 +28,17 @@ export class MainLayoutComponent implements OnInit {
     bucket: '',
   };
 
+  customDateValues: {
+    from: '';
+    to: '';
+  } = {
+    from: '',
+    to: '',
+  };
+
+  private lastCustomFilterKey = '';
+  displayCustomFields: boolean = false;
+
   constructor(
     private router: Router,
     private storeService: StoreService,
@@ -74,6 +85,9 @@ export class MainLayoutComponent implements OnInit {
   updateFilter(value: any) {
     const now = new Date();
 
+    this.displayCustomFields = false;
+    this.customDateValues = { from: '', to: '' };
+
     const periods: Record<string, { value: number; unit: 'hour' | 'day' }> = {
       '1h': { value: 1, unit: 'hour' },
       '1d': { value: 1, unit: 'day' },
@@ -90,12 +104,37 @@ export class MainLayoutComponent implements OnInit {
     this.sendData(this.filterValues);
   }
 
+  updateCustomFilter() {
+    if (this.customDateValues.from && this.customDateValues.to) {
+      const filterKey = `${this.customDateValues.from}|${this.customDateValues.to}`;
+
+      // Si c'est la même qu'avant, ne rien faire
+      if (this.lastCustomFilterKey === filterKey) {
+        console.log('⏭️ Même filtre, skip');
+        return;
+      }
+
+      this.filterValues.from = new Date(this.customDateValues.from).toISOString();
+      this.filterValues.to = new Date(this.customDateValues.to).toISOString();
+      this.filterValues.bucket = 'day'; // Default set to day because you choose two dates
+      this.sendData(this.filterValues);
+    }
+  }
+
   resetFilters() {
     this.filterValues = {
       from: '',
       to: '',
       bucket: '',
     };
+    this.sendData(null);
+  }
+
+  handleDisplayCustomFields() {
+    this.displayCustomFields = true;
+    if (this.displayCustomFields) {
+      this.resetFilters();
+    }
   }
 
   getPageTitle(): string {

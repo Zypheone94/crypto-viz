@@ -22,7 +22,7 @@ export class Analytics implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.intervalSubscription = interval(this.intervalDuration).subscribe((n) => {
-      console.log('tick', n);
+      //console.log('tick', n);
     });
   }
 

@@ -81,6 +81,7 @@ export class TimeSeries implements OnInit {
       error: (err) => {
         console.error('Erreur API', err);
         this.currentState = ComponentState.ERROR;
+        this.errorMessage = `Erreur lors de la récupération des données : ${err.error.detail}`;
       },
     });
   }

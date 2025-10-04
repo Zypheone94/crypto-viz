@@ -73,19 +73,17 @@
                   type="radio"
                   name="dateRange"
                   value="custom"
-                  (change)="updateFilter('custom')"
+                  (change)="handleDisplayCustomFields()"
                 />
                 <span class="radio-custom"></span>
                 <span class="option-text">Choisir une période</span>
               </label>
-              <div *ngIf="true" class="custom-date-range">
-                <input
-                  type="date"
-                  [(ngModel)]="filterValues.from"
-                  (change)="updateFilter('from')"
-                />
-                <span>→</span>
-                <input type="date" [(ngModel)]="filterValues.to" (change)="updateFilter('to')" />
+              <div *ngIf="displayCustomFields" class="custom-date-range">
+                <form (change)="updateCustomFilter()">
+                  <input type="date" [(ngModel)]="customDateValues.from" name="customFrom" />
+                  <span>→</span>
+                  <input type="date" [(ngModel)]="customDateValues.to" name="customTo" />
+                </form>
               </div>
             </div>
           </div>
