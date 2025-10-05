@@ -11,8 +11,8 @@ class LogEntry(TypedDict):
     ts: str
     level: str
     msg: str
-    extra: Optional[dict[str, Any]]
     response : Any
+    extra: Optional[dict[str, Any]]
 
 class JsonApiTemplate:
     def __init__(self, service: Services):
