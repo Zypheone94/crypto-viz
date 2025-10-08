@@ -1,0 +1,7 @@
+name: Dummy Check
+on: [pull_request]
+jobs:
+  dummy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "[[BIG SHOT]]"
