@@ -29,14 +29,14 @@ def main():
         load_dotenv(env_file)
     else:
         print("Warning: .env file not found. Using default configuration.")
-        print("Copy config.env.example to .env and customize as needed.")
+        print("Copy .env.example to .env and customize as needed.")
     
     # Set up signal handlers
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
     # Create data directory if it doesn't exist
-    data_path = os.getenv("DATA_PATH", "./data")
+    data_path = os.getenv("DATA_PATH", "data")
     Path(data_path).mkdir(parents=True, exist_ok=True)
     
     # Create logs directory if it doesn't exist
