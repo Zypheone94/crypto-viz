@@ -4,6 +4,10 @@ import { ComponentState } from '../../../shared/enums/component-state.enum';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { CommonModule } from '@angular/common';
 
+import { StoreService } from '../../../services/store.service';
+import { Subscription } from 'rxjs';
+import { TimeSeriesParams } from '../../../shared/interface/timeSeries-interface';
+
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration, ChartOptions, ChartType } from 'chart.js';
 
@@ -18,9 +22,13 @@ export class TimeSeries implements OnInit {
   currentState: ComponentState = ComponentState.LOADING;
   errorMessage = '';
 
+  // Subscription to new dates from the store
+  private dataSubscription: Subscription = new Subscription();
+  // Data received from the store
+  timeSeriesParams: TimeSeriesParams | null = null;
+  // Data received from the API
   data: any[] = [];
 
-  // mokedData
   public lineChartData: ChartConfiguration<'line'>['data'] = {
     labels: ['January', 'February', 'March', 'April', 'May', 'June', 'July'],
     datasets: [
@@ -40,34 +48,41 @@ export class TimeSeries implements OnInit {
   };
   public lineChartLegend = true;
 
-  constructor(private api: ApiService) {}
+  constructor(
+    private api: ApiService,
+    private storeService: StoreService,
+  ) {}
 
   ngOnInit() {
-    this.api
-      // Fake API call to replace with good values later
-      .getTimeseries({
-        from: '2023-01-01T00:00:00Z',
-        to: '2023-01-07T23:59:59Z',
-        bucket: 'day',
-      })
-      .subscribe({
-        next: (data) => {
-          console.log('Data reçue:', data);
-          this.data = data;
+    this.dataSubscription = this.storeService.data$.subscribe((res) => {
+      this.timeSeriesParams = res;
 
-          if (!data || data.length === 0) {
-            console.log('Pas de données → EMPTY');
-            this.currentState = ComponentState.EMPTY;
-            return;
-          }
+      this.timeSeriesParams
+        ? this.callTimeSeriesApi()
+        : (this.currentState = ComponentState.NOTREADY);
+    });
+  }
 
-          console.log('Données disponibles → READY');
-          this.currentState = ComponentState.READY;
-        },
-        error: (err) => {
-          console.error('Erreur API', err);
-          this.currentState = ComponentState.ERROR;
-        },
-      });
+  callTimeSeriesApi() {
+    this.api.getTimeseries(this.timeSeriesParams).subscribe({
+      next: (data) => {
+        console.log('Data reçue:', data);
+        this.data = data;
+
+        if (!data || data.length === 0) {
+          console.log('Pas de données → EMPTY');
+          this.currentState = ComponentState.EMPTY;
+          return;
+        }
+
+        console.log('Données disponibles → READY');
+        this.currentState = ComponentState.READY;
+      },
+      error: (err) => {
+        console.error('Erreur API', err);
+        this.currentState = ComponentState.ERROR;
+        this.errorMessage = `Erreur lors de la récupération des données : ${err.error.detail}`;
+      },
+    });
   }
 }

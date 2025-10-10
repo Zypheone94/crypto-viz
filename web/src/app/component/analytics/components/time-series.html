@@ -12,6 +12,10 @@
     <p>No data available for the selected time range.</p>
   </div>
 
+  <div *ngIf="currentState === componentState.NOTREADY" class="no-result-container">
+    <p>Please select a date range to get results.</p>
+  </div>
+
   <div *ngIf="currentState === componentState.READY" class="data-container">
     <h2>Time Series Data</h2>
     <pre>{{ data }}</pre>
