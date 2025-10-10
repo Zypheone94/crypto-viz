@@ -28,49 +28,89 @@ def run_rss_scraper():
         threading.Timer(interval, run_rss_scraper).start()
 
 def run_crawler():
-    """Run Scrapy crawler for more advanced scraping if needed."""
-    print("Running Scrapy crawler...")
+    """Run Scrapy crawler for cryptocurrency price data."""
+    print("Running Scrapy crawler for cryptocurrency price data...")
     
-    # Since we're focusing on the RSS scraper, we're leaving this as a stub
-    # Uncomment and fix imports if you want to use Scrapy crawlers
-    """
-    from scrapy.crawler import CrawlerProcess
+    from scrapy.crawler import CrawlerRunner
     from scrapy.utils.project import get_project_settings
-    from scraperweb.scrapers.spiders.coindesk_spider import CoinDeskSpider
+    from .scrapers.spiders.coingecko_spider import CoinGeckoSpider
+    from twisted.internet import defer
+    import logging
     
+    # Set up additional logging for crawler
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s [%(name)s] %(levelname)s: %(message)s',
+    )
+
     # Load Scrapy settings
     settings = get_project_settings()
 
     # Set data/output directory
     data_path = Path(os.getenv("DATA_PATH", "./data"))
     data_path.mkdir(parents=True, exist_ok=True)
-    settings.set("OUTPUT_DIR", str(data_path))
-
-    # Set pipeline
-    from scraperweb.scrapers.pipelines import CryptoDataPipeline
-    settings.set("ITEM_PIPELINES", {
-        CryptoDataPipeline: 300,
+    
+    # Make sure the output path exists
+    articles_path = data_path / "articles.ndjson"
+    articles_dir = articles_path.parent
+    articles_dir.mkdir(parents=True, exist_ok=True)
+    
+    print(f"Output will be saved to: {articles_path}")
+    
+    settings.update({
+        "OUTPUT_FILE": str(articles_path),
+        "ROBOTSTXT_OBEY": False,
+        "DOWNLOAD_DELAY": int(os.getenv("DOWNLOAD_DELAY", "3")),
+        "CONCURRENT_REQUESTS": int(os.getenv("CONCURRENT_REQUESTS", "1")),
+        "RANDOMIZE_DOWNLOAD_DELAY": 0.5,
+        "USER_AGENT": "crypto-viz-scraper/1.0",
+        "LOG_LEVEL": "INFO",
+        "ITEM_PIPELINES": {
+            "scraperweb.scrapers.pipelines.CryptoDataPipeline": 300,
+        },
+        "FEEDS": {
+            str(articles_path): {
+                'format': 'jsonlines',
+                'encoding': 'utf8',
+                'store_empty': False,
+                'overwrite': False,
+            },
+        },
     })
 
     # Set log file
     log_path = data_path / "logs"
     log_path.mkdir(parents=True, exist_ok=True)
-    settings.set("LOG_FILE", str(log_path / "scraper.log"))
+    log_file = log_path / "crawler.log"
+    settings["LOG_FILE"] = str(log_file)
+    
+    print(f"Crawler logs will be saved to: {log_file}")
 
-    # Optional settings
-    settings.set("ROBOTSTXT_OBEY", False)
-    settings.set("DOWNLOAD_DELAY", 2)
-    settings.set("CONCURRENT_REQUESTS", 1)
-    settings.set("RANDOMIZE_DOWNLOAD_DELAY", 0.5)
-    settings.set("USER_AGENT", "crypto-viz-scraper/1.0")
-    settings.set("LOG_LEVEL", "DEBUG")
+    # Use CrawlerRunner instead of CrawlerProcess to run non-blocking
+    runner = CrawlerRunner(settings)
+    
+    @defer.inlineCallbacks
+    def crawl():
+        try:
+            print("Starting CoinGecko crawler...")
+            yield runner.crawl(CoinGeckoSpider)
+            print("CoinGecko crawling completed.")
+        except Exception as e:
+            print(f"Error in crawler: {e}")
+        finally:
+            # Without this, the reactor keeps running and may prevent the program from exiting
+            # reactor.stop()  # Don't stop the reactor as it might be used by other components
+            pass
 
-    # Start Scrapy process
-    process = CrawlerProcess(settings)
-    process.crawl(CoinDeskSpider)
-    process.start()  # blocking
-    """
-    pass
+    # Run the crawler
+    crawl()
+    
+    # Schedule the next run
+    if not shutdown_event.is_set():
+        # Run crawlers every hour by default (more appropriate for price data)
+        interval = int(os.getenv("CRYPTO_FETCH_INTERVAL", "3600"))
+        print(f"Scheduling next crawler run in {interval} seconds...")
+        threading.Timer(interval, run_crawler).start()
 
 def run_server():
     """Run the FastAPI server in a separate thread."""
@@ -97,10 +137,13 @@ def main():
     print("=== Crypto Viz Scraper v1.0.0 ===")
     print("==================================")
     print(f"Data directory: {os.getenv('DATA_PATH', './data')}")
-    print(f"Fetch interval: {os.getenv('FETCH_INTERVAL', '300')} seconds")
+    print(f"RSS fetch interval: {os.getenv('FETCH_INTERVAL', '300')} seconds")
+    print(f"Crypto data fetch interval: {os.getenv('CRYPTO_FETCH_INTERVAL', '3600')} seconds")
+    print(f"Prompt generation interval: {os.getenv('PROMPT_GEN_INTERVAL', '21600')} seconds")
     print(f"API server port: {os.getenv('SCRAPER_PORT', '8000')}")
     print(f"Sources: {os.getenv('SOURCES', 'coindesk,cointelegraph')}")
     print(f"Force write: {os.getenv('FORCE_WRITE', 'false')}")
+    print(f"CoinGecko API Key configured: {'Yes' if os.getenv('COINGECKO_API_KEY') else 'No'}")
 
     try:
         # Start API server in a separate thread
@@ -108,6 +151,13 @@ def main():
         
         # Run RSS scraper immediately and schedule subsequent runs
         run_rss_scraper()
+        
+        # Run CoinGecko crawler immediately and schedule subsequent runs
+        run_crawler()
+        
+        # Import and run the ChatGPT prompt generator
+        from .prompt_generator import generate_chatgpt_prompt
+        generate_chatgpt_prompt()
         
         # Block the main thread to keep the program running
         # This is needed since the API server runs in a daemon thread
