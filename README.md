@@ -71,11 +71,13 @@ data/state/ : fichiers DuckDB pour snapshots rapides (latest.duckdb).
 
 ### API (FastAPI + DuckDB)
 - Endpoints :
-    - `/health`
-    - `/metrics/timeseries`
-    - `/metrics/top`
-    - `/metrics/latest`
-- DuckDB lit Parquet directement, + fichier d’état `latest.duckdb`.
+  - `/health`
+  - `/metrics/timeseries`
+  - `/metrics/top`
+  - `/metrics/latest`
+- Le service charge automatiquement les fichiers Parquet (`data/clean/parquet/**`) dans un **warehouse DuckDB** partagé (`ingestor/scrapper/data/duck/warehouse.duckdb`).
+- Un snapshot rapide des agrégations est conservé dans `data/state/latest.duckdb` et exposé via `/metrics/latest`.
+- Après un import manuel de Parquet, exécuter `python -c "from scraper.api.utils.duckdb_client import refresh_warehouse; refresh_warehouse()"` depuis `ingestor/`, puis vérifier avec `GET /metrics/latest`.
 - Logs JSON + Prometheus `/metrics`.
 
 ### Viewer (Angular)
