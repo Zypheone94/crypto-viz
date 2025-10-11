@@ -19,7 +19,7 @@ from typing import Iterable, Literal
 
 import duckdb
 
-from scrapper.scrapperdb.duck_schema import apply_schema
+from scraper.component.scrapperdb.duck_schema import apply_schema
 
 
 logger = logging.getLogger(__name__)

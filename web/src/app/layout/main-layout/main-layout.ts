@@ -4,6 +4,7 @@ import { filter } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { StoreService } from '../../services/store.service';
 
 @Component({
   selector: 'app-main-layout',
@@ -22,22 +23,32 @@ export class MainLayoutComponent implements OnInit {
   ];
 
   filterValues = {
-    dateRange: 'last-7-days',
-    startDate: '',
-    endDate: '',
-    category: 'all',
+    from: '',
+    to: '',
+    bucket: '',
   };
 
-  constructor(private router: Router) {}
+  customDateValues: {
+    from: '';
+    to: '';
+  } = {
+    from: '',
+    to: '',
+  };
+
+  private lastCustomFilterKey = '';
+  displayCustomFields: boolean = false;
+
+  constructor(
+    private router: Router,
+    private storeService: StoreService,
+  ) {}
 
   ngOnInit() {
-    console.log('🔍 URL au démarrage:', this.router.url);
-
     // Écouter les changements de route
     this.router.events
       .pipe(filter((event) => event instanceof NavigationEnd))
       .subscribe((event: NavigationEnd) => {
-        console.log('🔍 Navigation détectée:', event.url);
         this.updateSelectedTab(event.url);
       });
 
@@ -45,44 +56,85 @@ export class MainLayoutComponent implements OnInit {
   }
 
   private updateSelectedTab(url: string) {
-    console.log('🔍 URL reçue pour mise à jour:', url);
-
     const segments = url.split('/').filter((segment) => segment);
-    console.log('🔍 Segments extraits:', segments);
 
     if (segments.length === 0) {
       this.selectedTab = 'home';
     } else {
       this.selectedTab = segments[segments.length - 1];
     }
-
-    console.log('✅ Selected tab mis à jour:', this.selectedTab);
   }
 
   isActiveRoute(route: string): boolean {
     const isActive = this.selectedTab === route;
-    console.log(`🔍 Route ${route} active?`, isActive, '(selectedTab:', this.selectedTab, ')');
     return isActive;
   }
 
   onNavClick(route: string) {
-    console.log('👆 Clic sur navigation:', route);
     this.selectedTab = route;
   }
 
-  updateFilter(filterName: string, value: any) {
-    (this.filterValues as any)[filterName] = value;
-    console.log('🎛️ Filtre mis à jour:', filterName, value);
+  substractTime(date: Date, value: number, unit: 'hour' | 'day'): string {
+    const msPerHour = 60 * 60 * 1000;
+    const msPerDay = 24 * msPerHour;
+
+    const ms = unit === 'hour' ? value * msPerHour : value * msPerDay;
+    return new Date(date.getTime() - ms).toISOString();
+  }
+
+  updateFilter(value: any) {
+    const now = new Date();
+
+    this.displayCustomFields = false;
+    this.customDateValues = { from: '', to: '' };
+
+    const periods: Record<string, { value: number; unit: 'hour' | 'day' }> = {
+      '1h': { value: 1, unit: 'hour' },
+      '1d': { value: 1, unit: 'day' },
+      '3d': { value: 3, unit: 'day' },
+    };
+
+    const period = periods[value];
+    if (period) {
+      this.filterValues.from = this.substractTime(now, period.value, period.unit);
+      this.filterValues.to = now.toISOString();
+      this.filterValues.bucket = period.unit;
+    }
+
+    this.sendData(this.filterValues);
+  }
+
+  updateCustomFilter() {
+    if (this.customDateValues.from && this.customDateValues.to) {
+      const filterKey = `${this.customDateValues.from}|${this.customDateValues.to}`;
+
+      // Si c'est la même qu'avant, ne rien faire
+      if (this.lastCustomFilterKey === filterKey) {
+        console.log('⏭️ Même filtre, skip');
+        return;
+      }
+
+      this.filterValues.from = new Date(this.customDateValues.from).toISOString();
+      this.filterValues.to = new Date(this.customDateValues.to).toISOString();
+      this.filterValues.bucket = 'day'; // Default set to day because you choose two dates
+      this.sendData(this.filterValues);
+    }
   }
 
   resetFilters() {
     this.filterValues = {
-      dateRange: 'last-7-days',
-      startDate: '',
-      endDate: '',
-      category: 'all',
+      from: '',
+      to: '',
+      bucket: '',
     };
-    console.log('🔄 Filtres réinitialisés');
+    this.sendData(null);
+  }
+
+  handleDisplayCustomFields() {
+    this.displayCustomFields = true;
+    if (this.displayCustomFields) {
+      this.resetFilters();
+    }
   }
 
   getPageTitle(): string {
@@ -101,5 +153,9 @@ export class MainLayoutComponent implements OnInit {
       'health-check': 'État du système et performances',
     };
     return descriptions[this.selectedTab] || '';
+  }
+
+  sendData(data: any) {
+    this.storeService.setData(data);
   }
 }

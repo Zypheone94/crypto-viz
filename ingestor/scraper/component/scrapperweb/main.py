@@ -20,7 +20,7 @@ def run_crawler():
     settings = get_project_settings()
 
     # Set data/output directory
-    data_path = Path(os.getenv("DATA_PATH", "./data"))
+    data_path = Path(os.getenv("DATA_PATH", "data"))
     data_path.mkdir(parents=True, exist_ok=True)
     settings.set("OUTPUT_DIR", str(data_path))
 
@@ -57,7 +57,7 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
 
     print("Starting Crypto Viz Scraper")
-    print(f"Data directory: {os.getenv('DATA_PATH', './data')}")
+    print(f"Data directory: {os.getenv('DATA_PATH', 'data')}")
     print(f"Fetch interval: {os.getenv('FETCH_INTERVAL', '300')} seconds")
 
     try:
