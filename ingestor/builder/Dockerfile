@@ -6,6 +6,6 @@ COPY ingestor/pyproject.toml .
 
 RUN pip install --upgrade pip
 
-RUN pip install no-cache-dir -e .
+RUN pip install --no-cache-dir -e .
 
 COPY ingestor/builder ./ingestor/builder
