@@ -26,6 +26,7 @@ dependencies = [
     "feedparser",
     "pytest",
     "fastapi",
+    "typer"
 ]
 
 
