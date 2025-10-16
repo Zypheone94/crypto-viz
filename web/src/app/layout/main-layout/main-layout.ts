@@ -123,7 +123,7 @@ export class MainLayoutComponent implements OnInit {
       filter.to = now.toISOString();
       filter.bucket = period.unit;
 
-      this.sendData({ ...filter });
+      this.sendData(periode, filter);
     }
   }
 
@@ -140,7 +140,7 @@ export class MainLayoutComponent implements OnInit {
       filter.from = new Date(this.customDateValues[periode].from).toISOString();
       filter.to = new Date(this.customDateValues[periode].to).toISOString();
       filter.bucket = 'day'; // Default set to day because you choose two dates
-      this.sendData(filter);
+      this.sendData(periode, filter);
     }
   }
 
@@ -149,7 +149,7 @@ export class MainLayoutComponent implements OnInit {
       A: { from: '', to: '', bucket: '' },
       B: { from: '', to: '', bucket: '' },
     };
-    this.sendData(null);
+    this.sendData('ALL', null);
   }
 
   handleDisplayCustomFields(period: PeriodKey) {
@@ -174,7 +174,7 @@ export class MainLayoutComponent implements OnInit {
     return descriptions[this.selectedTab] || '';
   }
 
-  sendData(data: any) {
-    this.storeService.setData(data);
+  sendData(periode: 'A' | 'B' | 'ALL', data: any) {
+    this.storeService.setData(periode, data);
   }
 }

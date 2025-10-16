@@ -1,25 +1,32 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { BehaviorSubject, combineLatest, Observable } from 'rxjs';
 import { distinctUntilChanged } from 'rxjs/operators';
 
 @Injectable({
   providedIn: 'root',
 })
 export class StoreService {
-  // BehaviorSubject to hold the data
-  private dataSubject = new BehaviorSubject<any>(null);
-  // Observable for components to subscribe to
-  public data$: Observable<any> = this.dataSubject
-    .asObservable()
-    .pipe(distinctUntilChanged((prev, curr) => JSON.stringify(prev) === JSON.stringify(curr)));
+  private dataA = new BehaviorSubject<any>(null);
+  private dataB = new BehaviorSubject<any>(null);
 
-  // Method to update the data
-  setData(data: any) {
-    this.dataSubject.next(data);
+  combined$ = combineLatest([this.dataA, this.dataB]);
+
+  setData(periode: 'A' | 'B' | 'ALL', data: any) {
+    if (periode === 'A') {
+      this.dataA.next(data);
+    } else if (periode === 'B') {
+      this.dataB.next(data);
+    } else if (periode === 'ALL') {
+      this.dataA.next(null);
+      this.dataB.next(null);
+    }
   }
 
-  // Method to get the current value of the data
-  getData(): any {
-    return this.dataSubject.getValue();
+  getDataA() {
+    return this.dataA.asObservable().pipe(distinctUntilChanged());
+  }
+
+  getDataB() {
+    return this.dataB.asObservable().pipe(distinctUntilChanged());
   }
 }

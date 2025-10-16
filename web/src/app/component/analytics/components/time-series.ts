@@ -25,15 +25,29 @@ export class TimeSeries implements OnInit {
   // Subscription to new dates from the store
   private dataSubscription: Subscription = new Subscription();
   // Data received from the store
-  timeSeriesParams: TimeSeriesParams | null = null;
+  timeSeriesParamsA: TimeSeriesParams | null = null;
+  timeSeriesParamsB: TimeSeriesParams | null = null;
   // Data received from the API
-  data: any[] = [];
+  dataA: any[] = [];
+  dataB: any[] = [];
+
+  private randomInt = () => {
+    return Math.floor(Math.random() * 100);
+  };
 
   public lineChartData: ChartConfiguration<'line'>['data'] = {
     labels: ['January', 'February', 'March', 'April', 'May', 'June', 'July'],
     datasets: [
       {
-        data: [65, 59, 80, 81, 56, 55, 40],
+        data: [
+          this.randomInt(),
+          this.randomInt(),
+          this.randomInt(),
+          this.randomInt(),
+          this.randomInt(),
+          this.randomInt(),
+          this.randomInt(),
+        ],
         label: 'Series A',
         fill: true,
         tension: 0.5,
@@ -54,29 +68,51 @@ export class TimeSeries implements OnInit {
   ) {}
 
   ngOnInit() {
-    this.dataSubscription = this.storeService.data$.subscribe((res) => {
-      this.timeSeriesParams = res;
+    this.storeService.getDataA().subscribe((res) => {
+      this.timeSeriesParamsA = res;
+      if (res) this.callTimeSeriesApi('A');
+      else this.updateChart();
+    });
 
-      this.timeSeriesParams
-        ? this.callTimeSeriesApi()
-        : (this.currentState = ComponentState.NOTREADY);
+    this.storeService.getDataB().subscribe((res) => {
+      this.timeSeriesParamsB = res;
+      if (res) this.callTimeSeriesApi('B');
+      else this.updateChart();
     });
   }
 
-  callTimeSeriesApi() {
-    this.api.getTimeseries(this.timeSeriesParams).subscribe({
-      next: (data) => {
-        console.log('Data reçue:', data);
-        this.data = data;
+  callTimeSeriesApi(periode: 'A' | 'B') {
+    const params = periode === 'A' ? this.timeSeriesParamsA : this.timeSeriesParamsB;
+    if (!params) return;
 
+    // On garde les vraies dates mais on mock les valeurs
+    const from = new Date(params.from);
+    const to = new Date(params.to);
+    const stepMs = params.bucket === 'hour' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+
+    const mockedData: any = [];
+    for (let time = from.getTime(); time <= to.getTime(); time += stepMs) {
+      mockedData.push({
+        date: new Date(time).toISOString(),
+        value: Math.round(Math.random() * 100),
+      });
+    }
+
+    this.api.getTimeseries(params).subscribe({
+      next: (data) => {
         if (!data || data.length === 0) {
-          console.log('Pas de données → EMPTY');
           this.currentState = ComponentState.EMPTY;
           return;
         }
 
-        console.log('Données disponibles → READY');
+        if (periode === 'A') {
+          this.dataA = mockedData;
+        } else {
+          this.dataB = mockedData;
+        }
         this.currentState = ComponentState.READY;
+        this.updateChart();
+        console.log('Données API', data);
       },
       error: (err) => {
         console.error('Erreur API', err);
@@ -84,5 +120,44 @@ export class TimeSeries implements OnInit {
         this.errorMessage = `Erreur lors de la récupération des données : ${err.error.detail}`;
       },
     });
+  }
+
+  private updateChart() {
+    const hasA = this.dataA && this.dataA.length > 0;
+    const hasB = this.dataB && this.dataB.length > 0;
+
+    if (!hasA && !hasB) {
+      this.currentState = ComponentState.EMPTY;
+      return;
+    }
+
+    // Labels = ceux du premier jeu de données disponible
+    const labels = (hasA ? this.dataA : this.dataB).map((d: any) => d.date || d.label);
+
+    const datasets: any[] = [];
+
+    if (hasA) {
+      datasets.push({
+        data: this.dataA.map((d: any) => d.value),
+        label: 'Période A',
+        borderColor: 'rgba(54,162,235,1)',
+        backgroundColor: 'rgba(54,162,235,0.3)',
+        fill: true,
+        tension: 0.3,
+      });
+    }
+
+    if (hasB) {
+      datasets.push({
+        data: this.dataB.map((d: any) => d.value),
+        label: 'Période B',
+        borderColor: 'rgba(255,99,132,1)',
+        backgroundColor: 'rgba(255,99,132,0.3)',
+        fill: true,
+        tension: 0.3,
+      });
+    }
+
+    this.lineChartData = { labels, datasets };
   }
 }
