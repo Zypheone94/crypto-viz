@@ -5,7 +5,7 @@ from datetime import datetime
 import duckdb
 import glob
 import os
-from ..utils import JsonApiTemplate
+from ingestor.scraper.api.utils import JsonApiTemplate
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 
@@ -59,4 +59,9 @@ def get_timeseries(
     rows = con.fetchall()
     result = [{"t": r[0].isoformat(), "value": r[1]} for r in rows]
     myResponse = ApiResponse._create_response(level="info", msg="Success", response=result)
+    return JSONResponse(content=myResponse, status_code=200)
+
+@router.get("/aggregate")
+def get_aggregate(to: str, bucket: Literal["day", "hour"] ,from_: str = Query(alias="from")):
+    myResponse = ApiResponse._create_response(level="info", msg="Success", response={to, bucket, from_})
     return JSONResponse(content=myResponse, status_code=200)
