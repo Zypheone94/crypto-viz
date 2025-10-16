@@ -1,11 +1,11 @@
 FROM python:3
 
-WORKDIR app
+WORKDIR /app
 
 COPY ingestor/pyproject.toml .
 
 RUN pip install --upgrade pip
 
-RUN pip install .
+RUN pip install -e .
 
 COPY ingestor/scraper ./ingestor/scraper

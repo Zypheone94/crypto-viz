@@ -5,8 +5,12 @@ services:
       dockerfile: ingestor/scraper/Dockerfile
     volumes:
       - ./ingestor/scraper:/app/ingestor/scraper
-    command: python ingestor/scraper/main.py
-
+    working_dir: /app/ingestor/scraper/
+    ports:
+      - "${SCRAPER_PORT}:8080"
+    command: python -m uvicorn main:app --host 0.0.0.0 --port 8080 --reload
+    env_file:
+      - .env
 
   builder:
     build:
@@ -16,8 +20,7 @@ services:
       - ./ingestor/builder:/app/ingestor/builder
     command: python ingestor/builder/main.py
     env_file:
-      - ./ingestor/builder/.env
-
+      - .env
 
   web:
     build:
@@ -26,9 +29,10 @@ services:
     volumes:
       - ./web:/app/web
       - /app/web/node_modules
+      - ./.env:/app/.env
     ports:
-      - "4200:4200"
-    command: ng serve --host 0.0.0.0
+      - "${ANGULAR_PORT}:4200"
+    command: npm run serve
 
   broker:
     image: apache/kafka:latest
@@ -49,4 +53,4 @@ services:
       KAFKA_NUM_PARTITIONS: 3
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     ports:
-      - "9094:9094"
+      - "${KAFKA_PORT}:9094"

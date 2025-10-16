@@ -1,0 +1,117 @@
+<div class="layout-container">
+  <!-- Header compact -->
+  <header class="header small-header">
+    <div class="header-left">
+      <div class="logo">
+        <span class="logo-icon">🚀</span>
+        <h1 class="app-title">Mon App</h1>
+      </div>
+
+      <!-- Navigation -->
+      <nav class="header-nav">
+        <a
+          *ngFor="let item of navItems"
+          [routerLink]="item.route"
+          [class.active]="isActiveRoute(item.route)"
+          class="nav-link"
+          (click)="onNavClick(item.route)"
+        >
+          <span class="nav-icon">{{ item.icon }}</span>
+          <span class="nav-text">{{ item.label }}</span>
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="main-container">
+    <!-- Sidebar toujours affichée -->
+    <aside class="filters-sidebar">
+      <div class="sidebar-header">
+        <h3>🎛️ Options</h3>
+      </div>
+
+      <div class="filters-content">
+        <!-- Contenu spécifique à Analytics -->
+        <ng-container *ngIf="selectedTab === 'analytics'; else emptySidebar">
+          <div class="filter-category">
+            <h4>📅 Période</h4>
+            <div class="filter-options">
+              <label class="radio-option">
+                <input
+                  type="radio"
+                  name="dateRange"
+                  value="last-7-days"
+                  (change)="updateFilter('1h')"
+                />
+                <span class="radio-custom"></span>
+                <span class="option-text">Dernière heure</span>
+              </label>
+              <label class="radio-option">
+                <input
+                  type="radio"
+                  name="dateRange"
+                  value="last-30-days"
+                  (change)="updateFilter('1d')"
+                />
+                <span class="radio-custom"></span>
+                <span class="option-text">Dernier jour</span>
+              </label>
+              <label class="radio-option">
+                <input
+                  type="radio"
+                  name="dateRange"
+                  value="last-3-months"
+                  (change)="updateFilter('3d')"
+                />
+                <span class="radio-custom"></span>
+                <span class="option-text">3 derniers jours</span>
+              </label>
+
+              <!-- Période personnalisée -->
+              <label class="radio-option">
+                <input
+                  type="radio"
+                  name="dateRange"
+                  value="custom"
+                  (change)="handleDisplayCustomFields()"
+                />
+                <span class="radio-custom"></span>
+                <span class="option-text">Choisir une période</span>
+              </label>
+              <div *ngIf="displayCustomFields" class="custom-date-range">
+                <form (change)="updateCustomFilter()">
+                  <input type="date" [(ngModel)]="customDateValues.from" name="customFrom" />
+                  <span>→</span>
+                  <input type="date" [(ngModel)]="customDateValues.to" name="customTo" />
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <div class="filter-actions">
+            <button class="reset-btn" (click)="resetFilters()">🔄 Réinitialiser</button>
+          </div>
+        </ng-container>
+
+        <!-- Contenu vide ou placeholder -->
+        <ng-template #emptySidebar>
+          <p class="placeholder">Aucun filtre disponible pour cette page.</p>
+        </ng-template>
+      </div>
+    </aside>
+
+    <!-- Corps principal -->
+    <main class="main-content">
+      <div class="content-header">
+        <div class="page-title">
+          <h2>{{ getPageTitle() }}</h2>
+          <p class="page-description">{{ getPageDescription() }}</p>
+        </div>
+      </div>
+
+      <div class="content-body">
+        <router-outlet></router-outlet>
+      </div>
+    </main>
+  </div>
+</div>
