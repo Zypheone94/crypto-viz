@@ -33,15 +33,17 @@
       <div class="filters-content">
         <!-- Contenu spécifique à Analytics -->
         <ng-container *ngIf="selectedTab === 'analytics'; else emptySidebar">
-          <div class="filter-category">
-            <h4>📅 Période</h4>
+          <mat-expansion-panel *ngFor="let period of periods" class="periode-{{ period.key }}">
+            <mat-expansion-panel-header>
+              <mat-panel-title>📅 {{ period.label }}</mat-panel-title>
+            </mat-expansion-panel-header>
             <div class="filter-options">
               <label class="radio-option">
                 <input
                   type="radio"
-                  name="dateRange"
+                  name="dateRange {{ period.key }}"
                   value="last-7-days"
-                  (change)="updateFilter('1h')"
+                  (click)="updateFilter(period.key, '1h')"
                 />
                 <span class="radio-custom"></span>
                 <span class="option-text">Dernière heure</span>
@@ -49,9 +51,9 @@
               <label class="radio-option">
                 <input
                   type="radio"
-                  name="dateRange"
+                  name="dateRange {{ period.key }}"
                   value="last-30-days"
-                  (change)="updateFilter('1d')"
+                  (click)="updateFilter(period.key, '1d')"
                 />
                 <span class="radio-custom"></span>
                 <span class="option-text">Dernier jour</span>
@@ -59,9 +61,9 @@
               <label class="radio-option">
                 <input
                   type="radio"
-                  name="dateRange"
+                  name="dateRange {{ period.key }}"
                   value="last-3-months"
-                  (change)="updateFilter('3d')"
+                  (click)="updateFilter(period.key, '3d')"
                 />
                 <span class="radio-custom"></span>
                 <span class="option-text">3 derniers jours</span>
@@ -71,22 +73,30 @@
               <label class="radio-option">
                 <input
                   type="radio"
-                  name="dateRange"
+                  name="dateRange {{ period.key }}"
                   value="custom"
-                  (change)="handleDisplayCustomFields()"
+                  (click)="handleDisplayCustomFields(period.key)"
                 />
                 <span class="radio-custom"></span>
                 <span class="option-text">Choisir une période</span>
               </label>
-              <div *ngIf="displayCustomFields" class="custom-date-range">
-                <form (change)="updateCustomFilter()">
-                  <input type="date" [(ngModel)]="customDateValues.from" name="customFrom" />
+              <div *ngIf="displayCustomFields[period.key]" class="custom-date-range">
+                <div (change)="updateCustomFilter(period.key)">
+                  <input
+                    type="date"
+                    [(ngModel)]="customDateValues[period.key].from"
+                    [name]="'customFrom' + period.key"
+                  />
                   <span>→</span>
-                  <input type="date" [(ngModel)]="customDateValues.to" name="customTo" />
-                </form>
+                  <input
+                    type="date"
+                    [(ngModel)]="customDateValues[period.key].to"
+                    [name]="'customTo' + period.key"
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          </mat-expansion-panel>
 
           <div class="filter-actions">
             <button class="reset-btn" (click)="resetFilters()">🔄 Réinitialiser</button>

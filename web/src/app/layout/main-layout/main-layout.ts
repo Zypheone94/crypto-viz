@@ -5,11 +5,19 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { StoreService } from '../../services/store.service';
+import { MatExpansionModule } from '@angular/material/expansion';
+
+type PeriodKey = 'A' | 'B';
+
+interface Period {
+  key: PeriodKey;
+  label: string;
+}
 
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [MatExpansionModule, CommonModule, RouterModule, FormsModule],
   templateUrl: './main-layout.html',
   styleUrls: ['./main-layout.css'],
 })
@@ -22,22 +30,29 @@ export class MainLayoutComponent implements OnInit {
     { route: 'health-check', icon: '🔍', label: 'Health Check' },
   ];
 
-  filterValues = {
-    from: '',
-    to: '',
-    bucket: '',
+  periods: Period[] = [
+    { key: 'A', label: 'Période A' },
+    { key: 'B', label: 'Période B' },
+  ];
+
+  displayCustomFields: Record<PeriodKey, boolean> = {
+    A: false,
+    B: false,
   };
 
-  customDateValues: {
-    from: '';
-    to: '';
-  } = {
-    from: '',
-    to: '',
+  filterValues: Record<PeriodKey, { from: string; to: string; bucket: string }> = {
+    A: { from: '', to: '', bucket: '' },
+    B: { from: '', to: '', bucket: '' },
+  };
+
+  customDateValues: Record<PeriodKey, { from: string; to: string }> = {
+    A: { from: '', to: '' },
+    B: { from: '', to: '' },
   };
 
   private lastCustomFilterKey = '';
-  displayCustomFields: boolean = false;
+  displayCustomFieldsA: boolean = false;
+  displayCustomFieldsB: boolean = false;
 
   constructor(
     private router: Router,
@@ -82,11 +97,18 @@ export class MainLayoutComponent implements OnInit {
     return new Date(date.getTime() - ms).toISOString();
   }
 
-  updateFilter(value: any) {
+  updateFilter(periode: PeriodKey, value: any) {
     const now = new Date();
 
-    this.displayCustomFields = false;
-    this.customDateValues = { from: '', to: '' };
+    this.displayCustomFields[periode] = false;
+
+    if (periode === 'A') {
+      this.displayCustomFieldsA = false;
+    } else if (periode === 'B') {
+      this.displayCustomFieldsB = false;
+    }
+    // Réinitialiser seulement les dates de la période concernée
+    this.customDateValues[periode] = { from: '', to: '' };
 
     const periods: Record<string, { value: number; unit: 'hour' | 'day' }> = {
       '1h': { value: 1, unit: 'hour' },
@@ -96,45 +118,44 @@ export class MainLayoutComponent implements OnInit {
 
     const period = periods[value];
     if (period) {
-      this.filterValues.from = this.substractTime(now, period.value, period.unit);
-      this.filterValues.to = now.toISOString();
-      this.filterValues.bucket = period.unit;
-    }
+      const filter = this.filterValues[periode];
+      filter.from = this.substractTime(now, period.value, period.unit);
+      filter.to = now.toISOString();
+      filter.bucket = period.unit;
 
-    this.sendData(this.filterValues);
+      this.sendData(periode, filter);
+    }
   }
 
-  updateCustomFilter() {
-    if (this.customDateValues.from && this.customDateValues.to) {
-      const filterKey = `${this.customDateValues.from}|${this.customDateValues.to}`;
+  updateCustomFilter(periode: PeriodKey) {
+    if (this.customDateValues[periode].from && this.customDateValues[periode].to) {
+      const filterKey = `${this.customDateValues[periode].from}|${this.customDateValues[periode].to}`;
 
-      // Si c'est la même qu'avant, ne rien faire
       if (this.lastCustomFilterKey === filterKey) {
         console.log('⏭️ Même filtre, skip');
         return;
       }
 
-      this.filterValues.from = new Date(this.customDateValues.from).toISOString();
-      this.filterValues.to = new Date(this.customDateValues.to).toISOString();
-      this.filterValues.bucket = 'day'; // Default set to day because you choose two dates
-      this.sendData(this.filterValues);
+      const filter = this.filterValues[periode];
+      filter.from = new Date(this.customDateValues[periode].from).toISOString();
+      filter.to = new Date(this.customDateValues[periode].to).toISOString();
+      filter.bucket = 'day'; // Default set to day because you choose two dates
+
+      this.lastCustomFilterKey = filterKey;
+      this.sendData(periode, filter);
     }
   }
 
   resetFilters() {
     this.filterValues = {
-      from: '',
-      to: '',
-      bucket: '',
+      A: { from: '', to: '', bucket: '' },
+      B: { from: '', to: '', bucket: '' },
     };
-    this.sendData(null);
+    this.sendData('ALL', null);
   }
 
-  handleDisplayCustomFields() {
-    this.displayCustomFields = true;
-    if (this.displayCustomFields) {
-      this.resetFilters();
-    }
+  handleDisplayCustomFields(period: PeriodKey) {
+    this.displayCustomFields[period] = !this.displayCustomFields[period];
   }
 
   getPageTitle(): string {
@@ -155,7 +176,7 @@ export class MainLayoutComponent implements OnInit {
     return descriptions[this.selectedTab] || '';
   }
 
-  sendData(data: any) {
-    this.storeService.setData(data);
+  sendData(periode: 'A' | 'B' | 'ALL', data: any) {
+    this.storeService.setData(periode, data);
   }
 }
