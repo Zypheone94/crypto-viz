@@ -1,132 +1,135 @@
 # CryptoViz Scraper
 
-## What is the Scraper?
+## Qu’est-ce que le Scraper ?
 
-The scraper is a critical component of the CryptoViz platform that collects, processes, and stores cryptocurrency data from multiple sources. It serves as the data acquisition layer of the entire system, providing fresh and relevant information for analysis and visualization.
+Le scraper est un composant essentiel de la plateforme CryptoViz qui collecte, traite et stocke les données liées aux cryptomonnaies à partir de multiples sources. Il sert de couche d’acquisition de données pour l’ensemble du système, fournissant des informations fraîches et pertinentes pour l’analyse et la visualisation.
 
-## How Does It Work?
+## Comment fonctionne-t-il ?
 
-The scraper operates through several coordinated modules:
+Le scraper fonctionne à travers plusieurs modules coordonnés :
 
-1. **Scheduling System**: Runs data collection at configurable intervals using Python's threading module
-2. **Multiple Collection Methods**: Uses both RSS parsing and Scrapy spiders for different data types
-3. **Data Processing Pipeline**: Cleans, normalizes, and enriches the raw data
-4. **Configurable Data Sink**: Writes data to either filesystem (NDJSON files) or Kafka message broker (feature flag `INGEST_SINK`)
-5. **API Server**: Provides health checks and data status endpoints
+1. **Système de planification** : exécute la collecte de données à des intervalles configurables à l’aide du module `threading` de Python
+2. **Méthodes de collecte multiples** : utilise à la fois l’analyse de flux RSS et des spiders Scrapy pour différents types de données
+3. **Pipeline de traitement des données** : nettoie, normalise et enrichit les données brutes
+4. **Système de stockage configurable** : enregistre les données soit dans le système de fichiers (fichiers NDJSON), soit dans un broker Kafka (feature flag `INGEST_SINK`)
+5. **Serveur API** : fournit des endpoints pour les checks de santé et l’état des données
 
-Each module works together to ensure a reliable and efficient data collection process:
+Chaque module fonctionne ensemble pour garantir un processus de collecte fiable et efficace :
 
-When started, the scraper launches several processes:
-- The RSS scraper runs every 5 minutes (configurable)
-- The CoinGecko API scraper runs hourly (configurable)
-- The prompt generator runs every 6 hours (configurable)
-- A FastAPI server provides monitoring endpoints
+Au démarrage, le scraper lance plusieurs processus :
 
-## What Does It Collect?
+* Le scraper RSS s’exécute toutes les 5 minutes (configurable)
+* Le scraper d’API CoinGecko s’exécute toutes les heures (configurable)
+* Le générateur de prompts s’exécute toutes les 6 heures (configurable)
+* Un serveur FastAPI fournit des endpoints de monitoring
 
-This component is responsible for collecting cryptocurrency data from various sources:
+## Que collecte-t-il ?
 
-1. **RSS News Scraper**: Fetches crypto news articles from CoinDesk and CoinTelegraph RSS feeds
-2. **CoinGecko API Scraper**: Fetches cryptocurrency market data including prices, market cap, etc.
-3. **ChatGPT Prompt Generator**: Creates analysis prompts based on cryptocurrency market data
+Ce composant est chargé de collecter des données liées aux cryptomonnaies à partir de diverses sources :
 
-## Features
+1. **Scraper d’actualités RSS** : récupère des articles d’actualité crypto depuis les flux RSS de CoinDesk et CoinTelegraph
+2. **Scraper de l’API CoinGecko** : collecte des données de marché (prix, capitalisation, etc.)
+3. **Générateur de prompts ChatGPT** : crée des prompts d’analyse basés sur les données du marché crypto
 
-- **Web scraping** of cryptocurrency news and price data
-- **HTML content cleaning** before storing data
-- **Automatic scheduling** for regular data fetching
-- **FastAPI health endpoint** for monitoring
-- **ChatGPT prompt generation** for financial analysis
-- **Configurable data sinks** (filesystem or Kafka)
+## Fonctionnalités
 
-## Technical Architecture
+* **Web scraping** des actualités et des données de prix
+* **Nettoyage du contenu HTML** avant stockage
+* **Planification automatique** de la récupération des données
+* **Endpoint de santé FastAPI** pour le monitoring
+* **Génération de prompts ChatGPT** pour l’analyse financière
+* **Systèmes de stockage configurables** (filesystem ou Kafka)
 
-The scraper follows a modular architecture:
+## Architecture technique
+
+Le scraper suit une architecture modulaire :
 
 ```
 scraperweb/
-├── main.py              # Main entry point and scheduler
-├── rss.py               # RSS feed parsing functionality
-├── rss_scraper_poc.py   # RSS scraping implementation
-├── models.py            # Data models for articles
-├── models_crypto.py     # Data models for cryptocurrency data
-├── sink.py              # Data sink abstraction (filesystem/Kafka)
-├── io_ndjson.py         # NDJSON file I/O utilities
-├── api.py               # FastAPI server endpoints
-├── logging_json.py      # JSON-structured logging
-├── html_utils.py        # HTML cleaning utilities
-└── scrapers/            # Scrapy spiders
-    ├── pipelines.py     # Data processing pipelines
-    ├── run_spiders.py   # Spider runner utility
-    └── spiders/         # Individual scrapers
-        ├── coindesk_spider.py      # News article scraper
-        └── coingecko_spider.py     # Cryptocurrency price data scraper
+├── main.py              # Point d’entrée principal et scheduler
+├── rss.py               # Fonctionnalité d’analyse RSS
+├── rss_scraper_poc.py   # Implémentation du scraping RSS
+├── models.py            # Modèles de données pour les articles
+├── models_crypto.py     # Modèles de données pour les cryptomonnaies
+├── sink.py              # Abstraction du data sink (filesystem/Kafka)
+├── io_ndjson.py         # Utilitaires d’E/S NDJSON
+├── api.py               # Endpoints FastAPI
+├── logging_json.py      # Logs structurés en JSON
+├── html_utils.py        # Utilitaires de nettoyage HTML
+└── scrapers/            # Spiders Scrapy
+    ├── pipelines.py     # Pipelines de traitement des données
+    ├── run_spiders.py   # Utilitaire d’exécution des spiders
+    └── spiders/         # Scrapers individuels
+        ├── coindesk_spider.py      # Scraper d’articles d’actualité
+        └── coingecko_spider.py     # Scraper de données de prix crypto
 ```
 
-### Data Flow
+### Flux de données
 
-1. **Collection**: RSS feeds and API endpoints are queried at regular intervals
-2. **Processing**: Raw data is cleaned, normalized, and converted to structured models
-3. **Storage**: Processed data is written to the configured sink (filesystem or Kafka)
-4. **Analysis**: Market data is analyzed to generate prompts for further insights
+1. **Collecte** : les flux RSS et endpoints API sont interrogés à intervalles réguliers
+2. **Traitement** : les données brutes sont nettoyées, normalisées et converties en modèles structurés
+3. **Stockage** : les données traitées sont écrites dans le sink configuré (filesystem ou Kafka)
+4. **Analyse** : les données du marché sont analysées pour générer des prompts
 
 ## Configuration
 
-All configuration is managed through the `.env` file. A template `.env.example` file is provided in the repository.
+Toute la configuration est gérée via le fichier `.env`. Un fichier modèle `.env.example` est fourni dans le dépôt.
 
-### Setting Up Environment Variables
+### Configuration des variables d’environnement
 
-Before running the scraper, you need to set up your environment variables:
+Avant d’exécuter le scraper, configurez vos variables d’environnement :
 
-1. Copy the example environment file to create your own configuration:
-   ```bash
-   cp scraperweb/.env.example scraperweb/.env
-   ```
+1. Copiez le fichier d’exemple pour créer votre propre configuration :
 
-2. Edit the `.env` file to add your API keys and customize settings:
-   ```bash
-   # Add your OpenAI API key for ChatGPT prompt generation
-   openai_api_key=your_key_here
-   
-   # Add your CoinGecko API key (optional, improves rate limits)
-   COINGECKO_API_KEY=your_key_here
-   ```
+```bash
+cp scraperweb/.env.example scraperweb/.env
+```
 
-> **Note**: The `.env` file contains sensitive information and should never be committed to the repository. It is included in the `.gitignore` file.
+2. Modifiez le fichier `.env` pour ajouter vos clés API et personnaliser les réglages :
 
-### Available Configuration Options
+```bash
+# Ajoutez votre clé API OpenAI pour la génération de prompts ChatGPT
+openai_api_key=votre_cle_ici
+
+# Ajoutez votre clé API CoinGecko (optionnelle, améliore les limites de taux)
+COINGECKO_API_KEY=votre_cle_ici
+```
+
+> **Note** : Le fichier `.env` contient des informations sensibles et ne doit jamais être commité dans le dépôt. Il est inclus dans le `.gitignore`.
+
+### Options de configuration disponibles
 
 ```
-# API Keys
-openai_api_key=your_openai_api_key
-COINGECKO_API_KEY=your_coingecko_api_key  # Optional, improves rate limits
+# Clés API
+openai_api_key=votre_cle_openai
+COINGECKO_API_KEY=votre_cle_coingecko  # Optionnel, améliore les limites
 
-# Server Configuration
+# Configuration du serveur
 SCRAPER_PORT=8000
 HOST=0.0.0.0
 
-# Data Configuration
+# Configuration des données
 DATA_PATH=./data
-FETCH_INTERVAL=300             # RSS fetch interval in seconds (default: 5 min)
-CRYPTO_FETCH_INTERVAL=3600     # CoinGecko API fetch interval in seconds (default: 1 hour)
-PROMPT_GEN_INTERVAL=21600      # ChatGPT prompt generation interval in seconds (default: 6 hours)
+FETCH_INTERVAL=300             # Intervalle RSS en secondes (par défaut : 5 min)
+CRYPTO_FETCH_INTERVAL=3600     # Intervalle CoinGecko (par défaut : 1 heure)
+PROMPT_GEN_INTERVAL=21600      # Génération de prompts (par défaut : 6h)
 
-# Force write even if articles already exist (for testing)
+# Forcer l’écriture même si des articles existent (tests)
 FORCE_WRITE=true
 
-# Sources Configuration
+# Configuration des sources
 SOURCES=coindesk,cointelegraph
 
-# RSS Feed URLs
+# URLs RSS
 COINDESK_RSS_URL=https://www.coindesk.com/arc/outboundfeeds/rss/
 COINTELEGRAPH_RSS_URL=https://cointelegraph.com/rss
 ```
 
-## Data Structure
+## Structure des données
 
-### Cryptocurrency Price Data
+### Données de prix des cryptomonnaies
 
-The CoinGecko spider collects cryptocurrency price data with the following structure:
+Le spider CoinGecko collecte des données structurées comme suit :
 
 ```json
 {
@@ -151,139 +154,140 @@ The CoinGecko spider collects cryptocurrency price data with the following struc
 }
 ```
 
-### ChatGPT Prompts
+### Prompts ChatGPT
 
-The prompt generator creates two files for each prompt:
-- `crypto_analysis_YYYYMMDD_HHMMSS.json` - Full prompt data with metadata
-- `crypto_analysis_YYYYMMDD_HHMMSS.txt` - Plain text prompt for easy copying
+Le générateur de prompts crée deux fichiers pour chaque prompt :
 
-Example JSON structure:
+* `crypto_analysis_YYYYMMDD_HHMMSS.json` – données complètes avec métadonnées
+* `crypto_analysis_YYYYMMDD_HHMMSS.txt` – prompt en texte brut pour copie rapide
+
+Exemple JSON :
+
 ```json
 {
   "prompt_id": "crypto_analysis_20230615_1200",
   "timestamp": "2023-06-15T12:00:00Z",
   "top_coins": [...],
-  "prompt_text": "As a cryptocurrency financial analyst..."
+  "prompt_text": "En tant qu'analyste financier spécialisé en cryptomonnaies..."
 }
 ```
 
-## Usage
+## Utilisation
 
-### Running the Scraper
+### Exécution du scraper
 
 ```bash
 cd ingestor/scraper
-# Run the scraper
 python -m scraperweb.main
 ```
 
-For Windows users:
+Sous Windows :
+
 ```powershell
 cd C:\path\to\crypto-viz\ingestor\scraper
 python -m scraperweb.main
 ```
 
-### Running Individual Components
-
-You can run specific components separately:
+### Exécution de composants spécifiques
 
 ```bash
-# Run only RSS scraper
+# Scraper RSS uniquement
 python -m scraperweb.rss_scraper_poc
 
-# Run Scrapy spiders directly
+# Exécuter les spiders Scrapy
 python -m scraperweb.scrapers.run_spiders
 
-# Run just the API server
+# Lancer uniquement le serveur API
 python -m scraperweb.api
 ```
 
-### Accessing the API
+### Accès à l’API
 
-The scraper includes a FastAPI server with a health endpoint:
+Le scraper inclut un serveur FastAPI avec un endpoint de santé :
 
 ```
 GET http://localhost:8000/health
 ```
 
-Additional endpoints:
+Autres endpoints :
+
 ```
-GET http://localhost:8000/metrics - Basic metrics about collected data
-GET http://localhost:8000/status - Detailed system status
+GET http://localhost:8000/metrics - Statistiques basiques
+GET http://localhost:8000/status - État détaillé du système
 ```
 
-### Generated Prompts
+### Prompts générés
 
-ChatGPT prompts are saved to the `data/prompts` directory and can be used for financial analysis with OpenAI's API or by copying the `.txt` file content directly into ChatGPT.
+Les prompts ChatGPT sont sauvegardés dans le dossier `data/prompts` et peuvent être utilisés via l’API OpenAI ou en copiant directement le contenu du fichier `.txt`.
 
-## Development Guide
+## Guide de développement
 
-### Project Structure
+### Structure du projet
 
 ```
 scraperweb/
-├── main.py              # Main entry point and scheduler
-├── rss.py               # RSS feed parsing functionality
-├── sink.py              # Data sink abstraction (filesystem/Kafka)
-├── api.py               # FastAPI server endpoints
-├── scrapers/            # Scrapy spiders
-    └── spiders/         # Individual scrapers
+├── main.py              # Point d’entrée et scheduler
+├── rss.py               # Parsing RSS
+├── sink.py              # Abstraction du data sink
+├── api.py               # Endpoints FastAPI
+├── scrapers/            # Spiders Scrapy
+    └── spiders/         # Scrapers individuels
 ```
 
-### Adding a New Data Source
+### Ajouter une nouvelle source de données
 
-To add a new data source:
+1. **Pour des sources RSS** :
 
-1. **For RSS sources**:
-   - Add the RSS URL to the environment variables
-   - Update the `rss.py` module to include the new source
+   * Ajouter l’URL RSS dans les variables d’environnement
+   * Mettre à jour le module `rss.py`
 
-2. **For web scraping**:
-   - Create a new Scrapy spider in `scrapers/spiders/`
-   - Implement the parsing logic for the new source
-   - Register the spider in `run_spiders.py`
+2. **Pour le scraping web** :
 
-### Extending the Data Sink
+   * Créer un nouveau spider dans `scrapers/spiders/`
+   * Implémenter la logique de parsing
+   * L’enregistrer dans `run_spiders.py`
 
-To add a new data sink type:
+### Étendre le Data Sink
 
-1. Create a new class in `sink.py` that implements the same interface as `KafkaSink`
-2. Update the `write_to_sink` function to handle the new sink type
-3. Add appropriate environment variable handling
+1. Créer une nouvelle classe dans `sink.py` basée sur l’interface existante
+2. Mettre à jour `write_to_sink` pour supporter ce type
+3. Ajouter la gestion dans les variables d’environnement
 
-### Testing
+### Tests
 
-Run tests with:
+Lancer les tests avec :
 
 ```bash
 pytest tests/
 ```
 
-Key test files:
-- `tests/test_rss.py` - Tests for RSS functionality
-- `tests/test_sink.py` - Tests for sink functionality
+Fichiers clés :
 
-## Configuring the Data Sink (CRY-19)
+* `tests/test_rss.py` – Tests des fonctions RSS
+* `tests/test_sink.py` – Tests des sinks
 
-The scraper supports multiple data sinks through the `INGEST_SINK` feature flag:
+## Configuration du Data Sink (CRY-19)
 
-### Filesystem Sink (Default)
+Le scraper prend en charge plusieurs sinks via le feature flag `INGEST_SINK` :
 
-Data is written to NDJSON files in the `data/raw/YYYY/MM/DD/` directory structure. Files are organized by date and source with proper timestamping.
+### Sink Filesystem (par défaut)
+
+Les données sont enregistrées en NDJSON dans `data/raw/YYYY/MM/DD/`.
 
 ```
 INGEST_SINK=filesystem
 ```
 
-The filesystem sink offers:
-- Simple storage without external dependencies
-- Clear directory structure for data organization
-- Human-readable NDJSON files for easy inspection
-- Automatic date-based partitioning
+Avantages :
 
-### Kafka Sink
+* Pas de dépendances externes
+* Structure claire par date
+* Fichiers lisibles et inspectables
+* Partitionnement automatique par date
 
-Data can be streamed to Kafka for real-time processing, enabling integration with streaming data pipelines:
+### Sink Kafka
+
+Les données peuvent être diffusées en temps réel via Kafka :
 
 ```
 INGEST_SINK=kafka
@@ -295,40 +299,42 @@ KAFKA_RETRY_BACKOFF_MS=500
 KAFKA_MAX_IN_FLIGHT=5
 ```
 
-The Kafka sink provides:
-- Real-time data streaming capabilities
-- Automatic topic creation (if not exists)
-- Fault tolerance with configurable retries
-- Message deduplication using SHA-1 keys
-- Automatic fallback to filesystem if Kafka is unavailable
+Avantages :
 
-### Implementation Details
+* Streaming en temps réel
+* Création automatique des topics
+* Tolérance aux pannes avec retries
+* Déduplication via clés SHA-1
+* Fallback automatique vers filesystem
 
-The sink functionality is implemented in `scraperweb/sink.py` with these key components:
+### Détails d’implémentation
 
-1. **Feature Flag Detection**: Reads the `INGEST_SINK` environment variable
-2. **Dynamic Loading**: Checks for kafka-python library availability
-3. **Unified API**: Common interface for both sink types
-4. **Graceful Fallback**: Falls back to filesystem if Kafka fails
-5. **Type Safety**: Full typing support with Pydantic models
+Situé dans `scraperweb/sink.py` avec :
 
-### Switching Between Sinks
+1. **Détection de feature flag** (`INGEST_SINK`)
+2. **Chargement dynamique** (librairie kafka-python)
+3. **API unifiée** pour tous les sinks
+4. **Fallback automatique**
+5. **Typing strict avec Pydantic**
 
-To change the data sink, update the `INGEST_SINK` environment variable:
+### Changer de sink
+
+Modifiez `INGEST_SINK` :
 
 ```bash
-# When running directly
+# En exécution directe
 INGEST_SINK=kafka python -m scraperweb.main
 
-# Or in docker-compose.yml
+# Ou dans docker-compose.yml
 environment:
   - INGEST_SINK=kafka
 ```
 
-### Troubleshooting
+### Dépannage
 
-If using Kafka sink:
-- Ensure kafka-python is installed: `pip install kafka-python`
-- Verify Kafka broker is accessible at the configured bootstrap servers
-- Check Kafka topic permissions if seeing authorization errors
-- Monitor logs for connection issues or serialization errors
+Pour Kafka :
+
+* Vérifiez l’installation de kafka-python : `pip install kafka-python`
+* Assurez-vous que le broker Kafka est accessible
+* Vérifiez les permissions du topic
+* Consultez les logs pour les erreurs réseau ou sérialisation
