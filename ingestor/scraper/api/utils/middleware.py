@@ -3,7 +3,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 import time
 import json
 
-from .json_template import JsonTemplate
+from .json_log_template import JsonLogTemplate
 
 
 class Middleware(BaseHTTPMiddleware):
@@ -11,7 +11,7 @@ class Middleware(BaseHTTPMiddleware):
 
     def __init__(self, app):
         super().__init__(app)
-        self.logger = JsonTemplate()
+        self.logger = JsonLogTemplate()
 
 
     async def dispatch(self, request: Request, call_next):

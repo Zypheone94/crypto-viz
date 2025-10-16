@@ -17,12 +17,14 @@ export class ApiService {
     return this.http.get(`${this.baseUrl}/api/health/check`);
   }
 
-  getTimeseries(params: TimeSeriesParams): Observable<TimeSeriesResponse[]> {
+  getTimeseries(params: TimeSeriesParams | null): Observable<TimeSeriesResponse[]> {
     const httpParams = new HttpParams()
-      .set('from', params.from)
-      .set('to', params.to)
-      .set('bucket', params.bucket);
+      .set('from', params?.from || '')
+      .set('to', params?.to || '')
+      .set('bucket', params?.bucket || '');
 
-    return this.http.get<TimeSeriesResponse[]>(`${this.baseUrl}/metrics/timeseries`, { params: httpParams });
+    return this.http.get<TimeSeriesResponse[]>(`${this.baseUrl}/metrics/timeseries`, {
+      params: httpParams,
+    });
   }
 }
