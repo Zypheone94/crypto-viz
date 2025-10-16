@@ -17,8 +17,8 @@ export class HealthCheck implements OnInit {
 
   ngOnInit() {
     this.api.getHealthCheck().subscribe((data) => {
-      this.upTime = data.upTime;
-      this.version = data.version;
+      this.upTime = data.response.upTime;
+      this.version = data.response.version;
       console.log(data);
     });
   }
