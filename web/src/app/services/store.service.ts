@@ -1,6 +1,5 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, combineLatest, Observable } from 'rxjs';
-import { distinctUntilChanged } from 'rxjs/operators';
 
 @Injectable({
   providedIn: 'root',
@@ -22,11 +21,11 @@ export class StoreService {
     }
   }
 
-  getDataA() {
-    return this.dataA.asObservable().pipe(distinctUntilChanged());
+  getDataA(): Observable<any> {
+    return this.dataA.asObservable();
   }
 
-  getDataB() {
-    return this.dataB.asObservable().pipe(distinctUntilChanged());
+  getDataB(): Observable<any> {
+    return this.dataB.asObservable();
   }
 }

@@ -140,6 +140,8 @@ export class MainLayoutComponent implements OnInit {
       filter.from = new Date(this.customDateValues[periode].from).toISOString();
       filter.to = new Date(this.customDateValues[periode].to).toISOString();
       filter.bucket = 'day'; // Default set to day because you choose two dates
+
+      this.lastCustomFilterKey = filterKey;
       this.sendData(periode, filter);
     }
   }
