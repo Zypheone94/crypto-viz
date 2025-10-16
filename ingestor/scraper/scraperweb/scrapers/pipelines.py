@@ -5,6 +5,13 @@ from typing import Dict, Any
 
 sys.path.append(str(Path(__file__).parent.parent))
 
+# Import the sink module
+try:
+    from ..sink import write_to_sink
+except ImportError:
+    # Fallback for when module structure is different
+    from scraperweb.sink import write_to_sink
+
 class CryptoDataPipeline:
     """Pipeline to save all crypto data in a single NDJSON file"""
     
@@ -13,15 +20,12 @@ class CryptoDataPipeline:
         # Create parent directories if they don't exist
         self.output_file.parent.mkdir(parents=True, exist_ok=True)
         self.items_count = 0
-        # Print the output file path to help with debugging
-        print(f"CryptoDataPipeline initialized. Output file: {self.output_file}")
     
     @classmethod
     def from_crawler(cls, crawler):
         """Create pipeline instance from crawler settings"""
         # Get output file path from settings
         output_file = crawler.settings.get('OUTPUT_FILE', './data/articles.ndjson')
-        print(f"Pipeline output file from settings: {output_file}")
         return cls(output_file)
     
     def open_spider(self, spider):
@@ -41,14 +45,48 @@ class CryptoDataPipeline:
         spider.logger.info(f"Spider {self.spider_name} closed. Total items processed: {self.items_count}")
     
     def process_item(self, item: Dict[str, Any], spider):
-        """Append each item to the NDJSON file"""
+        """Process an item using the configured data sink"""
         try:
             # Log detailed item info for debugging
             spider.logger.info(f"Processing item: {item.get('id', 'unknown')}")
             
-            with open(self.output_file, 'a', encoding='utf-8') as f:
-                json.dump(item, f, ensure_ascii=False, separators=(',', ':'))
-                f.write('\n')
+            # Convert to ArticleModel if needed, but most scrapy items are dicts
+            from pydantic import BaseModel
+            if isinstance(item, BaseModel):
+                # Item is already a pydantic model
+                model_item = item
+            else:
+                # Create a basic model from dict
+                from ..models import ArticleModel
+                
+                # Try to adapt the item to our model structure
+                model_data = {
+                    "id": item.get("id", ""),
+                    "title": item.get("title", ""),
+                    "url": item.get("url", ""),
+                    "source": item.get("source", self.spider_name),
+                    "published_at": item.get("published_at", item.get("fetched_at", "")),
+                    "fetched_at": item.get("fetched_at", ""),
+                    "content": item.get("content", None)
+                }
+                try:
+                    model_item = ArticleModel(**model_data)
+                except Exception as e:
+                    spider.logger.error(f"Cannot convert item to ArticleModel: {e}")
+                    # Fallback to filesystem method
+                    with open(self.output_file, 'a', encoding='utf-8') as f:
+                        json.dump(item, f, ensure_ascii=False, separators=(',', ':'))
+                        f.write('\n')
+                    self.items_count += 1
+                    return item
+            
+            # Use the configured sink (kafka or filesystem)
+            base_dir = str(self.output_file.parent.parent)  # Get base directory
+            written, _ = write_to_sink(
+                base_dir=base_dir,
+                items=[model_item],
+                source_prefix=self.spider_name
+            )
             
             self.items_count += 1
             # Log progress every item for CoinGecko, every 10 for others

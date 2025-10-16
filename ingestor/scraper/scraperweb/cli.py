@@ -3,7 +3,7 @@ from pathlib import Path
 
 from .logging_json import log_json
 from .rss import fetch_and_parse_all
-from .io_ndjson import write_ndjson
+from .sink import write_to_sink
 
 
 def main():
@@ -13,7 +13,7 @@ def main():
 
     try:
         items = fetch_and_parse_all()
-        written, out_file = write_ndjson(args.base_dir, items)
+        written, out_file = write_to_sink(args.base_dir, items)
         log_json(
             "info",
             "rss_run_completed",
