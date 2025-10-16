@@ -1,3 +1,0 @@
-{"id": "133c6a46b50cd8eeb44f54a293b2aca589342a7d", "title": "millisecondes Z", "url": "https://ex/msz", "source": "test", "published_at": "2025-09-18T10:00:00.123Z", "fetched_at": "2025-09-18T10:00:06Z", "_corrupt_record": "2025-09-18T10:00:00.123Z"}
-{"id": "cf2cd60f02535835e516bc79ebd2a47e123fe646", "title": "sans timezone (INVALID)", "url": "https://ex/naive", "source": "test", "published_at": "2025-09-18T10:00:00", "fetched_at": "2025-09-18T10:00:05Z", "_corrupt_record": "2025-09-18T10:00:00"}
-{"id": "f122de27ff476a9b0678b522b468501c895e5840", "title": "format invalide", "url": "https://ex/bad", "source": "test", "published_at": "18-09-2025 10:00", "fetched_at": "2025-09-18T10:00:05Z", "_corrupt_record": "18-09-2025 10:00"}
