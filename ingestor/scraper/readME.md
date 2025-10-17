@@ -33,7 +33,7 @@ FastAPI automatically provides **Swagger UI** for testing the API:
 - Inspect via CLI:
 
 ```bash
-duckdb ingestor/scrapper/data/duck/warehouse.duckdb
+duckdb ingestor/scraper/data/duck/warehouse.duckdb
 ```
 
 - Endpoints powered by DuckDB:
@@ -54,11 +54,34 @@ duckdb ingestor/scrapper/data/duck/warehouse.duckdb
 - Pour forcer un rechargement (ex. après un import manuel) :
 
 ```bash
-cd ingestor
 python - <<'PY'
+import os
 from scraper.api.utils import duckdb_client
+import duckdb
+from glob import glob
+
+# Vérification
+pattern = duckdb_client.get_parquet_glob_pattern()
+print(f"Pattern: {pattern}")
+
+files = glob(pattern, recursive=True)
+print(f"Fichiers trouvés: {len(files)}")
+
+# Force le refresh
 duckdb_client.refresh_warehouse(force=True)
-print("Warehouse rechargé dans", duckdb_client.get_warehouse_path())
+
+# Vérification finale
+warehouse_path = duckdb_client.get_warehouse_path()
+with duckdb.connect(str(warehouse_path)) as con:
+    print("\n📊 Résultats:")
+    for table in ["articles", "latest", "metrics_windowed", "metrics_delta"]:
+        cnt = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        print(f"  - {table}: {cnt} lignes")
+
+    print("\n🔍 Aperçu 'latest':")
+    rows = con.execute("SELECT * FROM latest LIMIT 5").fetchall()
+    for row in rows:
+        print(f"  {row}")
 PY
 ```
 
