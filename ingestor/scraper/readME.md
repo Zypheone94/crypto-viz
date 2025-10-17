@@ -53,6 +53,7 @@ duckdb ingestor/scraper/data/duck/warehouse.duckdb
 - L’ingestion se fait automatiquement quand l’API détecte de nouveaux Parquet.
 - Pour forcer un rechargement (ex. après un import manuel) :
 
+COMMANDE À LANCER DANS LE /ingestor D'UN TERMINAL DOCKER
 ```bash
 python - <<'PY'
 import os
