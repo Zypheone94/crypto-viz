@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import JSONResponse
 from typing import Literal
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import duckdb
 import glob
 import os
 
-from scraper.api.utils.duckdb_client import read_latest_snapshot
+from api.utils.duckdb_client import read_latest_snapshot
 from ..utils import JsonApiTemplate
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
@@ -25,43 +25,85 @@ def parse_datetime(dt_str: str) -> datetime:
         myResponse = ApiResponse._create_response(level="error", msg=f"Invalid datetime: {dt_str}", response=[])
         raise HTTPException(status_code=400, detail=myResponse)
 
+ALLOWED_BUCKETS = {"hour", "day"}
+MAX_WINDOW_DAYS = 180
+
+def _parse_iso_to_utc(dt_str: str, param_name: str) -> datetime:
+    if not isinstance(dt_str, str):
+        raise ValueError(f"Paramètre '{param_name}' invalide: chaîne ISO 8601 attendue")
+    s = dt_str.strip()
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(s)
+    except Exception:
+        raise ValueError(
+            f"Paramètre '{param_name}' invalide: format ISO 8601 attendu (ex: 2025-09-18T10:00:00Z)"
+        )
+    if dt.tzinfo is None:
+        raise ValueError(f"Paramètre '{param_name}' doit inclure un fuseau horaire (ex: suffixe 'Z')")
+    return dt.astimezone(timezone.utc)
+
+def _iso_z(dt: datetime) -> str:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    s = dt.replace(microsecond=0).isoformat()
+    if s.endswith("+00:00"):
+        s = s[:-6] + "Z"
+    return s
+
 @router.get("/timeseries")
 def get_timeseries(
     from_: str = Query(..., alias="from"),
     to: str = Query(...),
-    bucket: Literal["hour", "day"] = Query(...)
+    bucket: str = Query("day"), 
 ):
-    # Validation des paramètres
-    dt_from = parse_datetime(from_)
-    dt_to = parse_datetime(to)
-    if dt_from > dt_to:
-        myResponse = ApiResponse._create_response(level="error", msg="'from' doit être <= 'to'", response=[])
-        raise HTTPException(status_code=400, detail=myResponse)
+    # Validation stricte des paramètres
+    try:
+        if bucket not in ALLOWED_BUCKETS:
+            return JSONResponse(status_code=400, content={"error": "bucket invalide: doit être 'hour' ou 'day'"})
+
+        dt_from_utc = _parse_iso_to_utc(from_, "from")
+        dt_to_utc = _parse_iso_to_utc(to, "to")
+
+        if not (dt_from_utc < dt_to_utc):
+            return JSONResponse(status_code=400, content={"error": "'from' doit être strictement inférieur à 'to'"})
+
+        if (dt_to_utc - dt_from_utc) > timedelta(days=MAX_WINDOW_DAYS):
+            return JSONResponse(status_code=400, content={"error": f"fenêtre maximale de {MAX_WINDOW_DAYS} jours dépassée"})
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
 
     # Récupération des fichiers Parquet
     files = glob.glob(PARQUET_PATH, recursive=True)
     if not files:
-        myResponse = ApiResponse._create_response(level="warning", msg="No data found", response=[])
-        return JSONResponse(content=myResponse, status_code=200)
+        # Contrat: renvoyer une liste vide si aucune donnée
+        return JSONResponse(content=[], status_code=200)
 
     # Query DuckDB
-    con = duckdb.connect(database=':memory:')
-    # Construire une liste de chemins correctement quotés
     parquet_list = ", ".join(f"'{f}'" for f in files)
     query = f"""
         SELECT 
             date_trunc('{bucket}', ts) AS t,
-            count(*) AS value
+            COUNT(*) AS count
         FROM read_parquet([{parquet_list}])
         WHERE ts >= ? AND ts <= ?
         GROUP BY t
-        ORDER BY t
+        ORDER BY t ASC
     """
-    con.execute(query, [dt_from, dt_to])
-    rows = con.fetchall()
-    result = [{"t": r[0].isoformat(), "value": r[1]} for r in rows]
-    myResponse = ApiResponse._create_response(level="info", msg="Success", response=result)
-    return JSONResponse(content=myResponse, status_code=200)
+
+    params = [dt_from_utc.replace(tzinfo=None), dt_to_utc.replace(tzinfo=None)]
+
+    with duckdb.connect(database=":memory:") as con:
+        con.execute(query, params)
+        rows = con.fetchall()
+
+    result = [{"t": _iso_z(r[0]) if isinstance(r[0], datetime) else str(r[0]), "count": int(r[1])} for r in rows]
+    result.sort(key=lambda x: x["t"])
+
+    return JSONResponse(content=result, status_code=200)
 
 @router.get("/latest")
 def get_latest():
