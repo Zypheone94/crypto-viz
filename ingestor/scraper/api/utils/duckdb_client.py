@@ -19,7 +19,7 @@ from typing import Iterable, Literal
 
 import duckdb
 
-from scraper.component.scrapperdb.duck_schema import apply_schema
+from  scraper.component.scrapperdb.duck_schema import ensure_physical_tables
 
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def get_warehouse_path() -> Path:
     if override:
         return Path(override)
     base_dir = _resolve_base_dir()
-    return base_dir / "scrapper" / "data" / "duck" / "warehouse.duckdb"
+    return base_dir / "scraper" / "data" / "duck" / "warehouse.duckdb"
 
 
 def _build_files_signature(files: list[str]) -> str | None:
@@ -95,7 +95,7 @@ def _refresh_warehouse(files: list[str]) -> None:
     file_array_sql = _format_file_array(files)
 
     with duckdb.connect(str(warehouse_path)) as con:
-        apply_schema(con)
+        ensure_physical_tables(con)
 
         # Reset tables before loading new data
         con.execute("DELETE FROM metrics_trending")
