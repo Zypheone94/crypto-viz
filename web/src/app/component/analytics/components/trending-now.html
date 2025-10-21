@@ -1,0 +1,53 @@
+﻿<div class="trending-now">
+
+  <div *ngIf="currentState === componentState.LOADING" class="loading-container">
+    <mat-spinner></mat-spinner>
+    <p>Chargement des tendances…</p>
+  </div>
+
+  <div *ngIf="currentState === componentState.ERROR" class="error-container">
+    <p class="error-message">Erreur : {{ errorMessage }}</p>
+  </div>
+
+  <div *ngIf="currentState === componentState.EMPTY" class="no-result-container">
+    <p>Aucune source en tendance sur la période.</p>
+  </div>
+
+  <div *ngIf="currentState === componentState.READY" class="data-container">
+    <h2>Trending Now</h2>
+
+    <table class="table">
+      <thead>
+      <tr>
+        <th>Source</th>
+        <th>Actuel</th>
+        <th>Réf</th>
+        <th>Δ</th>
+        <th>Δ %</th>
+        <th>Tendance</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr *ngFor="let it of data | slice:0:limit">
+        <td>{{ it.source }}</td>
+        <td>{{ it.value }}</td>
+        <td>{{ it.prev }}</td>
+        <td [ngClass]="trendClass(it)">{{ it.delta }}</td>
+        <td [ngClass]="trendClass(it)">{{ (it.delta_pct * 100) | number : '1.0-1' }}%</td>
+        <td [ngClass]="trendClass(it)" [attr.aria-label]="(it.delta_pct*100) + '%'">
+          {{ trendArrow(it) }}
+        </td>
+      </tr>
+      </tbody>
+    </table>
+
+    <div style="height: 360px; margin-top: 12px;">
+      <canvas
+        baseChart
+        [type]="'bar'"
+        [data]="barChartData"
+        [options]="barChartOptions">
+      </canvas>
+    </div>
+  </div>
+</div>
