@@ -1,69 +1,122 @@
-import os, time, json, hashlib, pathlib
+import os, time, json, hashlib, pathlib, io, codecs, re
 from datetime import datetime, timezone
 from loguru import logger
 import polars as pl
+
 RAW_DIR = pathlib.Path(os.getenv("RAW_DIR", "../data/raw"))
 OUT_DIR = pathlib.Path(os.getenv("OUT_DIR", "../data/clean/parquet"))
-
+REJECT_DIR = OUT_DIR.parent / "_corrupt"
 SLEEP_SEC = int(os.getenv("BUILDER_POLL_INTERVAL", "5"))
+
+def _clean_text(s: str | None) -> str | None:
+    if s is None:
+        return None
+    s = s.encode("utf-8", errors="ignore").decode("utf-8")
+    s = re.sub(r"\s+", " ", s.strip())
+    return s
+
+def _sha1_from(title: str | None, url: str | None) -> str:
+    return hashlib.sha1(((url or "") + (title or "")).encode("utf-8")).hexdigest()
 
 def ensure_cols(df: pl.DataFrame, cols: list[str]) -> pl.DataFrame:
     for c in cols:
         if c not in df.columns:
             df = df.with_columns(pl.lit(None).alias(c))
     return df
-import io
-import codecs
 
 def process_file(path: pathlib.Path) -> int:
-    with open(path, "rb") as f:
-        raw = f.read()
+    raw = path.read_bytes()
     if raw[:3] == codecs.BOM_UTF8:
         raw = raw[3:]
     text = raw.decode("utf-8", errors="replace")
     df = pl.read_ndjson(io.StringIO(text))
-    if df.is_empty():
-        logger.info(json.dumps({
-            "service":"builder","level":"debug","msg":"empty_file", "path": str(path)
-        }))
-        return 0
-    df = ensure_cols(df, ["title","url","source","published_at","fetched_at"])
-    df = df.with_columns(
-        pl.struct(["url","title"]).map_elements(
-            lambda r: hashlib.sha1(((r["url"] or "") + (r["title"] or "")).encode("utf-8")).hexdigest()
-        ).alias("id")
-    )
 
+    if df.is_empty():
+        logger.info(json.dumps({"service":"builder","level":"debug","msg":"empty_file","path":str(path)}))
+        return 0
+
+    expected = [
+        "title","url","source","published_at","fetched_at",
+        "symbol","price_usd","market_cap_usd","id"
+    ]
+    df = ensure_cols(df, expected)
+
+    if "id" not in df.columns:
+        df = df.with_columns(pl.lit(None).alias("id"))
+    df = df.with_columns(
+        pl.when(pl.col("id").is_null() | (pl.col("id")==""))
+          .then(pl.struct(["url","title"]).map_elements(lambda r: _sha1_from(r["title"], r["url"])))
+          .otherwise(pl.col("id"))
+          .alias("id")
+    )
     df = df.with_columns([
         pl.when(pl.col("published_at").is_not_null())
-        .then(
-            pl.col("published_at")
-            .str.replace(r"Z$", "+00:00")  # 'Z' -> '+00:00'
-            .str.strptime(pl.Datetime, format="%Y-%m-%dT%H:%M:%S%z", strict=False)
-            .dt.convert_time_zone("UTC")  # normalise en UTC
-        )
-        .otherwise(None)
-        .alias("ts")
-    ]).with_columns([
-        pl.col("ts").dt.date().alias("date")
+          .then(
+              pl.col("published_at").cast(pl.Utf8)
+              .str.replace(r"Z$", "+00:00")
+              .str.strptime(pl.Datetime, format="%Y-%m-%dT%H:%M:%S%z", strict=False)
+              .dt.convert_time_zone("UTC")
+          ).otherwise(None).alias("ts"),
+        pl.when(pl.col("fetched_at").is_not_null())
+          .then(
+              pl.col("fetched_at").cast(pl.Utf8)
+              .str.replace(r"Z$", "+00:00")
+              .str.strptime(pl.Datetime, format="%Y-%m-%dT%H:%M:%S%z", strict=False)
+              .dt.convert_time_zone("UTC")
+          ).otherwise(None).alias("fetched_at_ts"),
     ])
-    df = df.select(["id","ts","date","title","url","source","fetched_at"])
-    total = 0
-    for key, g in df.group_by("date"):
-        date_value = key[0] if isinstance(key, tuple) else key
-        try:
-            folder = date_value.isoformat()
-        except AttributeError:
-            folder = str(date_value)
+    invalid = (
+        df.filter(pl.col("ts").is_null())
+          .with_columns(pl.col("published_at").alias("_corrupt_record"))
+          .select(["id","title","url","source","published_at","fetched_at","symbol","price_usd","market_cap_usd","_corrupt_record"])
+    )
+    valid = df.filter(pl.col("ts").is_not_null())
 
+    valid = (
+        valid.with_columns([
+            pl.col("title").map_elements(_clean_text, return_dtype=pl.Utf8),
+            pl.col("url").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
+            pl.col("source").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
+            pl.col("symbol").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
+
+            pl.col("price_usd").cast(pl.Float64),
+            pl.col("market_cap_usd").cast(pl.Float64),
+
+            # dates
+            pl.col("ts").alias("ts"),  # déjà UTC
+            pl.col("ts").dt.date().alias("date"),
+            pl.col("fetched_at_ts").alias("fetched_at"),
+        ])
+        .select([
+            "id","ts","date","title","url","source","fetched_at",
+            "symbol","price_usd","market_cap_usd"
+        ])
+    )
+
+    if invalid.height > 0:
+        REJECT_DIR.mkdir(parents=True, exist_ok=True)
+        rej_path = REJECT_DIR / f"reject-{int(time.time())}.ndjson"
+        with open(rej_path, "w", encoding="utf-8") as f:
+            for rec in invalid.to_dicts():
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        logger.warning(json.dumps({
+            "service":"builder","level":"warn","msg":"corrupt_rows",
+            "count": invalid.height, "reject_file": str(rej_path)
+        }))
+
+    total = 0
+    for key, g in valid.group_by("date"):
+        date_value = key[0] if isinstance(key, tuple) else key
+        folder = getattr(date_value, "isoformat", lambda: str(date_value))()
         outdir = OUT_DIR / f"date={folder}"
         outdir.mkdir(parents=True, exist_ok=True)
         outpath = outdir / f"part-{int(time.time())}.parquet"
         g.write_parquet(outpath)
         logger.info(json.dumps({
-            "service": "builder", "level": "info", "msg": "parquet_written",
-            "date": folder, "rows": g.height, "path": str(outpath)
+            "service":"builder","level":"info","msg":"parquet_written",
+            "date":folder,"rows":g.height,"path":str(outpath)
         }))
+        total += g.height
 
     return total
 
