@@ -4,8 +4,8 @@ services:
       context: .
       dockerfile: ingestor/scraper/Dockerfile
     volumes:
-      - ./ingestor/scraper:/app/ingestor/scraper
-      - ./ingestor/data:/app/ingestor/data
+      - ./ingestor:/app/ingestor
+      - ./ingestor/scraper/data/duck:/app/ingestor/scraper/data/duck
     working_dir: /app/ingestor/scraper/
     ports:
       - "${SCRAPER_PORT}:8080"
