@@ -1,11 +1,9 @@
 """DuckDB helper utilities for the metrics API.
 
-This module maintains a DuckDB warehouse (`warehouse.duckdb`) populated from the
-clean Parquet lake. Queries exposed by the API always read from the warehouse so
-the schema defined in `scrapper/scrapperdb/duck_schema.py` is fully leveraged.
+This module maintains a DuckDB warehouse (warehouse.duckdb) populated from the
+clean Parquet lake. Queries exposed by the API always read from the warehouse
+so the schema defined in `scraper/component/scrapperdb/duck_schema.py` is used.
 """
-
-# Code ajouté par Alexandru : orchestration du chargement du warehouse DuckDB.
 
 from __future__ import annotations
 
@@ -19,7 +17,7 @@ from typing import Iterable, Literal
 
 import duckdb
 
-from  scraper.component.scrapperdb.duck_schema import ensure_physical_tables, rebuild_from_parquet
+from scraper.component.scrapperdb.duck_schema import ensure_physical_tables, rebuild_from_parquet
 
 
 logger = logging.getLogger(__name__)
@@ -48,29 +46,23 @@ def get_parquet_glob_pattern() -> str:
         return override
     base_dir = _resolve_base_dir()
     repo_root = base_dir.parent
-
     candidates = [
         base_dir / "data" / "clean" / "parquet" / "**" / "*.parquet",
         repo_root / "data" / "clean" / "parquet" / "**" / "*.parquet",
     ]
-
     for path in candidates:
         matches = glob(str(path), recursive=True)
         if matches:
             return str(path)
-
-    # Fallback to metrics materialisations (ingestor or repo root)
+    # fallback: metrics
     metric_candidates = [
         base_dir / "data" / "metrics" / "**" / "*.parquet",
         repo_root / "data" / "metrics" / "**" / "*.parquet",
     ]
-
     for path in metric_candidates:
         matches = glob(str(path), recursive=True)
         if matches:
             return str(path)
-
-    # Default to first clean path so caller still gets a sensible value
     return str(candidates[0])
 
 
@@ -115,20 +107,17 @@ def _format_file_array(files: Iterable[str]) -> str:
 def _refresh_warehouse(files: list[str]) -> None:
     warehouse_path = get_warehouse_path()
     warehouse_path.parent.mkdir(parents=True, exist_ok=True)
-
     with duckdb.connect(str(warehouse_path)) as con:
+        ensure_physical_tables(con)
         rebuild_from_parquet(con, files)
-        
     logger.info("DuckDB warehouse refreshed at %s", warehouse_path)
 
 
 def _ensure_warehouse_loaded(force: bool = False) -> None:
     global _WAREHOUSE_SIGNATURE
-
     pattern = get_parquet_glob_pattern()
     files = glob(pattern, recursive=True)
     signature = _build_files_signature(files)
-
     if force or signature != _WAREHOUSE_SIGNATURE:
         _refresh_warehouse(files)
         _WAREHOUSE_SIGNATURE = signature
@@ -141,7 +130,6 @@ def query_timeseries(
 ) -> list[dict[str, object]]:
     _ensure_warehouse_loaded()
     warehouse_path = get_warehouse_path()
-
     with duckdb.connect(str(warehouse_path)) as con:
         rows = con.execute(
             f"""
@@ -155,26 +143,21 @@ def query_timeseries(
             """,
             [dt_from, dt_to],
         ).fetchall()
-
     return [{"t": _format_bucket(bucket_start), "value": value} for bucket_start, value in rows]
 
 
 def read_latest_snapshot() -> dict[str, object]:
     _ensure_warehouse_loaded()
     warehouse_path = get_warehouse_path()
-
     with duckdb.connect(str(warehouse_path)) as con:
         rows = con.execute(
             "SELECT metric, count, updated_at FROM latest"
         ).fetchall()
-
     if not rows:
         return {"updated_at": None, "counts": {}}
-
     counts = {metric: count for metric, count, _ in rows}
     updated_at_values: Iterable[datetime | None] = (row[2] for row in rows)
     latest_ts = max((ts for ts in updated_at_values if ts is not None), default=None)
-
     return {
         "updated_at": latest_ts.isoformat() if isinstance(latest_ts, datetime) else None,
         "counts": counts,
@@ -183,5 +166,4 @@ def read_latest_snapshot() -> dict[str, object]:
 
 def refresh_warehouse(force: bool = False) -> None:
     """Public helper to force a warehouse refresh (e.g., from a CLI)."""
-
     _ensure_warehouse_loaded(force=force)
