@@ -6,10 +6,11 @@ import duckdb
 import glob
 import os
 
-from scraper.api.utils.duckdb_client import read_latest_snapshot
-from ..utils import JsonApiTemplate
+from ingestor.scraper.api.utils.duckdb_client import read_latest_snapshot
+from ingestor.scraper.api.utils.json_api_res_template import JsonApiTemplate
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
+DB_FILE = "/app/ingestor/scraper/data/duck/warehouse.duckdb"
 
 PARQUET_PATH = os.path.join(
     os.path.dirname(__file__), "../../data/clean/parquet/**/*.parquet"
@@ -117,6 +118,15 @@ def get_top(
     return JSONResponse(content=result, status_code=200)
 
 @router.get("/aggregate")
-def get_aggregate(to: str, bucket: Literal["day", "hour"] ,from_: str = Query(alias="from")):
-    myResponse = ApiResponse._create_response(level="info", msg="Success", response={to, bucket, from_})
-    return JSONResponse(content=myResponse, status_code=200)
+def get_aggregate(to: str, bucket: Literal["day", "hour"], from_: str = Query(alias="from")):
+
+    if not os.path.exists(DB_FILE):
+        raise HTTPException(status_code=404, detail=f"Database not found at {DB_FILE}")
+    else :
+        print('ok')
+        with duckdb.connect(database=DB_FILE) as con:
+            query = con.sql(f"SELECT * FROM articles WHERE fetched_at BETWEEN '{parse_datetime(from_)}' AND '{parse_datetime(to)}'").df()
+            print(query)
+            con.close()
+
+    return JSONResponse(content={"count": "count"}, status_code=200)
