@@ -125,7 +125,7 @@ def get_aggregate(to: str, bucket: Literal["day", "hour"], from_: str = Query(al
     else :
         print('ok')
         with duckdb.connect(database=DB_FILE) as con:
-            query = con.sql(f"SELECT * FROM articles WHERE fetched_at BETWEEN '{parse_datetime(from_)}' AND '{parse_datetime(to)}'").df()
+            query = con.sql(f"SELECT * FROM articles WHERE fetched_at BETWEEN '{parse_datetime(from_)}' AND '{parse_datetime(to)}'")
             print(query)
             con.close()
 
