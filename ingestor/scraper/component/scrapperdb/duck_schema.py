@@ -6,6 +6,7 @@ from glob import glob
 from typing import Iterable, List
 
 import duckdb
+import pandas as pd
 
 DEFAULT_PARQUET_DIR = (
     pathlib.Path(__file__).resolve().parents[1] / "data" / "clean" / "parquet"
@@ -40,7 +41,6 @@ def ensure_physical_tables(con: duckdb.DuckDBPyConnection) -> None:
             market_cap_usd  DOUBLE
         );
     """)
-
     con.execute("""
         CREATE TABLE IF NOT EXISTS metrics_windowed (
             window_start TIMESTAMP,
@@ -49,7 +49,6 @@ def ensure_physical_tables(con: duckdb.DuckDBPyConnection) -> None:
             count        BIGINT
         );
     """)
-
     con.execute("""
         CREATE TABLE IF NOT EXISTS metrics_delta (
             source         VARCHAR,
@@ -62,7 +61,6 @@ def ensure_physical_tables(con: duckdb.DuckDBPyConnection) -> None:
             delta_pct      DOUBLE
         );
     """)
-
     con.execute("""
         CREATE TABLE IF NOT EXISTS metrics_sources_daily (
             date   DATE,
@@ -70,7 +68,6 @@ def ensure_physical_tables(con: duckdb.DuckDBPyConnection) -> None:
             count  BIGINT
         );
     """)
-
     con.execute("""
         CREATE TABLE IF NOT EXISTS metrics_trending (
             rank           INTEGER,
@@ -84,7 +81,6 @@ def ensure_physical_tables(con: duckdb.DuckDBPyConnection) -> None:
             delta_pct      DOUBLE
         );
     """)
-
     con.execute("""
         CREATE TABLE IF NOT EXISTS latest (
             source       VARCHAR,
@@ -96,17 +92,13 @@ def ensure_physical_tables(con: duckdb.DuckDBPyConnection) -> None:
 
 
 def _truncate_all(con: duckdb.DuckDBPyConnection) -> None:
-    con.execute("TRUNCATE TABLE articles;")
-    con.execute("TRUNCATE TABLE metrics_windowed;")
-    con.execute("TRUNCATE TABLE metrics_delta;")
-    con.execute("TRUNCATE TABLE metrics_sources_daily;")
-    con.execute("TRUNCATE TABLE metrics_trending;")
-    con.execute("TRUNCATE TABLE latest;")
+    for table in ["articles", "metrics_windowed", "metrics_delta",
+                  "metrics_sources_daily", "metrics_trending", "latest"]:
+        con.execute(f"TRUNCATE TABLE {table};")
 
 
-def _format_file_array(files: Iterable[str]) -> str:
-    quoted = [ "'" + pathlib.Path(p).resolve().as_posix().replace("'", "''") + "'" for p in files ]
-    return "[" + ", ".join(quoted) + "]"
+def _format_file_array(files: Iterable[str]) -> List[str]:
+    return sorted([str(pathlib.Path(f).resolve()) for f in files])
 
 
 def rebuild_from_parquet(con: duckdb.DuckDBPyConnection, parquet_files: List[str]) -> None:
@@ -117,36 +109,32 @@ def rebuild_from_parquet(con: duckdb.DuckDBPyConnection, parquet_files: List[str
         print(f"[WARN] Aucun .parquet trouvé via GLOB: {PARQUET_GLOB}. Tables vidées mais non remplies.")
         return
 
-    file_array_sql = _format_file_array(sorted(parquet_files))
+    file_paths = _format_file_array(parquet_files)
 
-    # 1) ARTICLES (dedup by id, keep latest ts)
-    con.execute(
-        f"""
-        INSERT INTO articles
-        WITH raw AS (
-            SELECT
-                id,
-                CAST(ts AS TIMESTAMP)                              AS ts,
-                COALESCE(date, CAST(ts AS DATE))                   AS date,
-                title,
-                url,
-                source,
-                TRY_CAST(fetched_at AS TIMESTAMP)                  AS fetched_at,
-                TRY_CAST(symbol AS VARCHAR)                        AS symbol,
-                TRY_CAST(price_usd AS DOUBLE)                      AS price_usd,
-                TRY_CAST(market_cap_usd AS DOUBLE)                 AS market_cap_usd
-            FROM read_parquet({file_array_sql})
-        ), dedup AS (
-            SELECT * FROM raw
-            QUALIFY ROW_NUMBER() OVER (PARTITION BY id ORDER BY ts DESC) = 1
-        )
-        SELECT * FROM dedup;
-        """
-    )
+    dfs = []
+    for file_path in file_paths:
+        df = con.execute(f"SELECT * FROM read_parquet('{file_path}')").df()
+        dfs.append(df)
+    df_all = pd.concat(dfs, ignore_index=True)
 
-    # 2) metrics_windowed (daily buckets, by source)
-    con.execute(
-        """
+    for col, dtype in [('symbol', 'str'), ('price_usd', 'float'), ('market_cap_usd', 'float')]:
+        if col not in df_all.columns:
+            df_all[col] = None
+
+    df_all['ts'] = pd.to_datetime(df_all['ts'], errors='coerce')
+    df_all['date'] = pd.to_datetime(df_all['date'], errors='coerce').dt.date
+    df_all['fetched_at'] = pd.to_datetime(df_all['fetched_at'], errors='coerce')
+    df_all['symbol'] = df_all['symbol'].astype('string')
+    df_all['price_usd'] = pd.to_numeric(df_all['price_usd'], errors='coerce')
+    df_all['market_cap_usd'] = pd.to_numeric(df_all['market_cap_usd'], errors='coerce')
+
+    df_all.sort_values('ts', ascending=False, inplace=True)
+    df_all = df_all.drop_duplicates(subset=['id'], keep='first')
+
+    duckdb.from_df(df_all).execute("INSERT INTO articles SELECT * FROM df_all")
+
+    # 2) metrics_windowed
+    con.execute("""
         INSERT INTO metrics_windowed
         SELECT
             window_start,
@@ -159,12 +147,10 @@ def rebuild_from_parquet(con: duckdb.DuckDBPyConnection, parquet_files: List[str
         )
         GROUP BY window_start, source
         ORDER BY window_start, source;
-        """
-    )
+    """)
 
-    # 3) metrics_delta (per source: last 1h vs previous 24h)
-    con.execute(
-        f"""
+    # 3) metrics_delta
+    con.execute(f"""
         INSERT INTO metrics_delta
         WITH recent AS (
             SELECT source, COUNT(*) AS current_count
@@ -175,7 +161,7 @@ def rebuild_from_parquet(con: duckdb.DuckDBPyConnection, parquet_files: List[str
         baseline AS (
             SELECT source, COUNT(*) AS prev_count
             FROM articles
-            WHERE ts <  current_timestamp - INTERVAL 1 HOUR
+            WHERE ts < current_timestamp - INTERVAL 1 HOUR
               AND ts >= current_timestamp - INTERVAL 25 HOUR
             GROUP BY source
         ),
@@ -203,23 +189,19 @@ def rebuild_from_parquet(con: duckdb.DuckDBPyConnection, parquet_files: List[str
             END AS delta_pct
         FROM merged
         ORDER BY delta_pct DESC NULLS LAST, source;
-        """
-    )
+    """)
 
-    # 4) metrics_sources_daily (simple volume par jour/source)
-    con.execute(
-        """
+    # 4) metrics_sources_daily
+    con.execute("""
         INSERT INTO metrics_sources_daily
         SELECT date, source, COUNT(*) AS count
         FROM articles
         GROUP BY date, source
         ORDER BY date, source;
-        """
-    )
+    """)
 
-    # 5) metrics_trending – ranking basé sur metrics_delta (delta_pct DESC)
-    con.execute(
-        """
+    # 5) metrics_trending
+    con.execute("""
         INSERT INTO metrics_trending
         WITH ranked AS (
             SELECT
@@ -238,12 +220,10 @@ def rebuild_from_parquet(con: duckdb.DuckDBPyConnection, parquet_files: List[str
             rank, source, window_label, baseline_label, as_of, value, prev, delta, delta_pct
         FROM ranked
         ORDER BY rank;
-        """
-    )
+    """)
 
-    # 6) latest snapshot (per source + total) with window label
-    con.execute(
-        f"""
+    # 6) latest snapshot
+    con.execute(f"""
         INSERT INTO latest(source, window_label, updated_at, count)
         SELECT
             metric_source AS source,
@@ -262,14 +242,11 @@ def rebuild_from_parquet(con: duckdb.DuckDBPyConnection, parquet_files: List[str
                    MAX(ts)  AS updated_at
             FROM articles
         );
-        """
-    )
+    """)
 
 
 if __name__ == "__main__":
     WAREHOUSE_DB.parent.mkdir(parents=True, exist_ok=True)
-
-    # Resolve parquet files from GLOB (recursive)
     files = glob(PARQUET_GLOB, recursive=True)
 
     print(f"[INFO] Target DB     : {WAREHOUSE_DB}")

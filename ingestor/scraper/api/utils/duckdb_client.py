@@ -16,9 +16,7 @@ from pathlib import Path
 from typing import Iterable, Literal
 
 import duckdb
-from ingestor.scraper.component.scrapperdb.duck_schema import apply_schema
 
-from  scraper.component.scrapperdb.duck_schema import ensure_physical_tables
 
 
 logger = logging.getLogger(__name__)
