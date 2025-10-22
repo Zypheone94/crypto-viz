@@ -19,7 +19,7 @@ from typing import Iterable, Literal
 
 import duckdb
 
-from  scraper.component.scrapperdb.duck_schema import ensure_physical_tables
+from  scraper.component.scrapperdb.duck_schema import ensure_physical_tables, rebuild_from_parquet
 
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,31 @@ def get_parquet_glob_pattern() -> str:
     if override:
         return override
     base_dir = _resolve_base_dir()
-    return str(base_dir / "data" / "clean" / "parquet" / "**" / "*.parquet")
+    repo_root = base_dir.parent
+
+    candidates = [
+        base_dir / "data" / "clean" / "parquet" / "**" / "*.parquet",
+        repo_root / "data" / "clean" / "parquet" / "**" / "*.parquet",
+    ]
+
+    for path in candidates:
+        matches = glob(str(path), recursive=True)
+        if matches:
+            return str(path)
+
+    # Fallback to metrics materialisations (ingestor or repo root)
+    metric_candidates = [
+        base_dir / "data" / "metrics" / "**" / "*.parquet",
+        repo_root / "data" / "metrics" / "**" / "*.parquet",
+    ]
+
+    for path in metric_candidates:
+        matches = glob(str(path), recursive=True)
+        if matches:
+            return str(path)
+
+    # Default to first clean path so caller still gets a sensible value
+    return str(candidates[0])
 
 
 def get_warehouse_path() -> Path:
@@ -92,148 +116,10 @@ def _refresh_warehouse(files: list[str]) -> None:
     warehouse_path = get_warehouse_path()
     warehouse_path.parent.mkdir(parents=True, exist_ok=True)
 
-    file_array_sql = _format_file_array(files)
-
     with duckdb.connect(str(warehouse_path)) as con:
-        ensure_physical_tables(con)
-
-        # Reset tables before loading new data
-        con.execute("DELETE FROM metrics_trending")
-        con.execute("DELETE FROM metrics_sources_daily")
-        con.execute("DELETE FROM metrics_delta")
-        con.execute("DELETE FROM metrics_windowed")
-        con.execute("DELETE FROM latest")
-        con.execute("DELETE FROM articles")
-
-        if files:
-            logger.info("Loading %d parquet files into DuckDB warehouse", len(files))
-            con.execute(
-                f"""
-                INSERT INTO articles
-                WITH raw AS (
-                    SELECT
-                        id,
-                        CAST(ts AS TIMESTAMP) AS ts,
-                        COALESCE(date, CAST(ts AS DATE)) AS date,
-                        title,
-                        url,
-                        source,
-                        TRY_CAST(fetched_at AS TIMESTAMP) AS fetched_at
-                    FROM read_parquet({file_array_sql})
-                ), dedup AS (
-                    SELECT *
-                    FROM raw
-                    QUALIFY ROW_NUMBER() OVER (PARTITION BY id ORDER BY ts DESC) = 1
-                )
-                SELECT * FROM dedup
-                """
-            )
-
-            # Windowed metrics (daily buckets)
-            con.execute(
-                """
-                INSERT INTO metrics_windowed
-                SELECT
-                    window_start,
-                    window_start + INTERVAL 1 DAY AS window_end,
-                    COUNT(*) AS count
-                FROM (
-                    SELECT date_trunc('day', ts) AS window_start FROM articles
-                )
-                GROUP BY window_start
-                ORDER BY window_start
-                """
-            )
-
-            # Daily deltas vs previous day
-            con.execute(
-                """
-                INSERT INTO metrics_delta
-                WITH daily AS (
-                    SELECT date, COUNT(*) AS count
-                    FROM articles
-                    GROUP BY date
-                ), ranked AS (
-                    SELECT
-                        date,
-                        count,
-                        LAG(count) OVER (ORDER BY date) AS prev_count
-                    FROM daily
-                )
-                SELECT
-                    date,
-                    count,
-                    count - COALESCE(prev_count, 0) AS delta_abs,
-                    CASE
-                        WHEN prev_count IS NULL OR prev_count = 0 THEN NULL
-                        ELSE CAST((count - prev_count) AS DOUBLE) / prev_count * 100.0
-                    END AS delta_pct
-                FROM ranked
-                ORDER BY date
-                """
-            )
-
-            # Daily volume by source
-            con.execute(
-                """
-                INSERT INTO metrics_sources_daily
-                SELECT
-                    date,
-                    source,
-                    COUNT(*) AS count
-                FROM articles
-                GROUP BY date, source
-                ORDER BY date, source
-                """
-            )
-
-            # Simple trending: top sources per day (placeholder for keyword scoring)
-            con.execute(
-                """
-                INSERT INTO metrics_trending
-                WITH ranked AS (
-                    SELECT
-                        date_trunc('day', ts) AS ts_window_start,
-                        source AS keyword,
-                        COUNT(*) AS count,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY date_trunc('day', ts)
-                            ORDER BY COUNT(*) DESC, source
-                        ) AS rn
-                    FROM articles
-                    GROUP BY 1, 2
-                )
-                SELECT ts_window_start, keyword, count
-                FROM ranked
-                WHERE rn <= 10
-                ORDER BY ts_window_start, keyword
-                """
-            )
-
-            # Snapshot table (per source + total)
-            con.execute(
-                """
-                INSERT INTO latest(metric, count, updated_at)
-                SELECT
-                    metric,
-                    count,
-                    updated_at
-                FROM (
-                    SELECT source AS metric,
-                           COUNT(*) AS count,
-                           MAX(ts) AS updated_at
-                    FROM articles
-                    GROUP BY source
-                    UNION ALL
-                    SELECT 'total' AS metric,
-                           COUNT(*) AS count,
-                           MAX(ts) AS updated_at
-                    FROM articles
-                )
-                """
-            )
-
-        logger.info("DuckDB warehouse refreshed at %s", warehouse_path)
+        rebuild_from_parquet(con, files)
+        
+    logger.info("DuckDB warehouse refreshed at %s", warehouse_path)
 
 
 def _ensure_warehouse_loaded(force: bool = False) -> None:

@@ -27,22 +27,19 @@ BASELINE_LABEL = "24h"
 
 def ensure_physical_tables(con: duckdb.DuckDBPyConnection) -> None:
     con.execute("""
-        CREATE TABLE IF NOT EXISTS articles (
-            id              VARCHAR,
-            ts              TIMESTAMP,
-            date            DATE,
-            title           VARCHAR,
-            url             VARCHAR,
-            source          VARCHAR,
-            fetched_at      TIMESTAMP,
-            symbol          VARCHAR,
-            price_usd       DOUBLE,
-            market_cap_usd  DOUBLE
-        );
+        CREATE OR REPLACE TABLE articles (
+                id         VARCHAR,
+                ts         TIMESTAMP,
+                date       DATE,
+                title      VARCHAR,
+                url        VARCHAR,
+                source     VARCHAR,
+                fetched_at TIMESTAMP
+            );
     """)
 
     con.execute("""
-        CREATE TABLE IF NOT EXISTS metrics_windowed (
+        CREATE OR REPLACE TABLE metrics_windowed (
             window_start TIMESTAMP,
             window_end   TIMESTAMP,
             source       VARCHAR,
@@ -51,7 +48,7 @@ def ensure_physical_tables(con: duckdb.DuckDBPyConnection) -> None:
     """)
 
     con.execute("""
-        CREATE TABLE IF NOT EXISTS metrics_delta (
+        CREATE OR REPLACE TABLE metrics_delta (
             source         VARCHAR,
             window_label   VARCHAR,
             baseline_label VARCHAR,
@@ -64,7 +61,7 @@ def ensure_physical_tables(con: duckdb.DuckDBPyConnection) -> None:
     """)
 
     con.execute("""
-        CREATE TABLE IF NOT EXISTS metrics_sources_daily (
+        CREATE OR REPLACE TABLE metrics_sources_daily (
             date   DATE,
             source VARCHAR,
             count  BIGINT
@@ -72,7 +69,7 @@ def ensure_physical_tables(con: duckdb.DuckDBPyConnection) -> None:
     """)
 
     con.execute("""
-        CREATE TABLE IF NOT EXISTS metrics_trending (
+        CREATE OR REPLACE TABLE metrics_trending (
             rank           INTEGER,
             source         VARCHAR,
             window_label   VARCHAR,
@@ -86,7 +83,7 @@ def ensure_physical_tables(con: duckdb.DuckDBPyConnection) -> None:
     """)
 
     con.execute("""
-        CREATE TABLE IF NOT EXISTS latest (
+        CREATE OR REPLACE TABLE latest (
             source       VARCHAR,
             window_label VARCHAR,
             updated_at   TIMESTAMP,
@@ -122,43 +119,53 @@ def rebuild_from_parquet(con: duckdb.DuckDBPyConnection, parquet_files: List[str
     # 1) ARTICLES (dedup by id, keep latest ts)
     con.execute(
         f"""
-        INSERT INTO articles
-        WITH raw AS (
-            SELECT
-                id,
-                CAST(ts AS TIMESTAMP)                              AS ts,
-                COALESCE(date, CAST(ts AS DATE))                   AS date,
-                title,
-                url,
-                source,
-                TRY_CAST(fetched_at AS TIMESTAMP)                  AS fetched_at,
-                TRY_CAST(symbol AS VARCHAR)                        AS symbol,
-                TRY_CAST(price_usd AS DOUBLE)                      AS price_usd,
-                TRY_CAST(market_cap_usd AS DOUBLE)                 AS market_cap_usd
-            FROM read_parquet({file_array_sql})
-        ), dedup AS (
-            SELECT * FROM raw
-            QUALIFY ROW_NUMBER() OVER (PARTITION BY id ORDER BY ts DESC) = 1
-        )
-        SELECT * FROM dedup;
+            INSERT INTO articles (id, ts, date, title, url, source, fetched_at)
+            WITH raw AS (
+                SELECT
+                    id,
+                    COALESCE(
+                        TRY_CAST(ts AS TIMESTAMP),
+                        TRY_STRPTIME(CAST(ts AS VARCHAR), '%Y-%m-%dT%H:%M:%S%z')
+                    ) AS ts,
+                    COALESCE(
+                        TRY_CAST(date AS DATE),
+                        CAST(
+                            COALESCE(
+                                TRY_CAST(ts AS TIMESTAMP),
+                                TRY_STRPTIME(CAST(ts AS VARCHAR), '%Y-%m-%dT%H:%M:%S%z')
+                            ) AS DATE
+                        )
+                    ) AS date,
+                    title,
+                    url,
+                    source,
+                    TRY_CAST(fetched_at AS TIMESTAMP) AS fetched_at
+                FROM read_parquet({file_array_sql}, union_by_name=True)
+            ), dedup AS (
+                SELECT * FROM raw
+                WHERE id IS NOT NULL AND ts IS NOT NULL
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY id ORDER BY ts DESC) = 1
+            )
+            SELECT id, ts, date, title, url, source, fetched_at FROM dedup;
         """
     )
 
     # 2) metrics_windowed (daily buckets, by source)
     con.execute(
         """
-        INSERT INTO metrics_windowed
-        SELECT
-            window_start,
-            window_start + INTERVAL 1 DAY AS window_end,
-            source,
-            COUNT(*) AS count
-        FROM (
-            SELECT date_trunc('day', ts) AS window_start, source
-            FROM articles
-        )
-        GROUP BY window_start, source
-        ORDER BY window_start, source;
+            INSERT INTO metrics_windowed
+            SELECT
+                window_start,
+                window_start + INTERVAL 1 DAY AS window_end,
+                source,
+                COUNT(*) AS count
+            FROM (
+                SELECT date_trunc('day', ts) AS window_start, source
+                FROM articles
+                WHERE ts IS NOT NULL AND source IS NOT NULL
+            )
+            GROUP BY window_start, source
+            ORDER BY window_start, source;
         """
     )
 
