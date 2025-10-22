@@ -9,59 +9,32 @@ def load_lazy() -> pl.LazyFrame:
     patt = str(CLEAN_ROOT / "**" / "*.parquet")
     lf = pl.scan_parquet(patt)
 
-    if "ts" not in lf.collect_schema().names():
+    names = lf.collect_schema().names()
+    if "ts" not in names:
         raise RuntimeError(f"'ts' column not found in {patt}")
 
-    return lf.select(pl.col("ts").cast(pl.Datetime).alias("ts"))
-
-def _normalize_boundaries(df: pl.DataFrame) -> pl.DataFrame:
-    cols = set(df.columns)
-    rename = {}
-    if "_lower_boundary" in cols: rename["_lower_boundary"] = "window_start"
-    if "_upper_boundary" in cols: rename["_upper_boundary"] = "window_end"
-    if rename:
-        df = df.rename(rename)
-    if "window_start" in df.columns and "window_end" in df.columns:
-        df = (df
-              .with_columns([
-                  pl.col("window_start").cast(pl.Datetime),
-                  pl.col("window_end").cast(pl.Datetime),
-                  pl.col("count").cast(pl.Int64)
-              ])
-              .sort("window_start"))
-    return df
-
-
-def compute_window(lf: pl.LazyFrame, *, every: str, period: str) -> pl.DataFrame:
-    lf_sorted = lf.sort("ts")
-
-    out = (
-        lf_sorted.group_by_dynamic(
-            index_column="ts",
-            every=every,
-            period=period,
-            closed="left",
-            include_boundaries=True,
-            label="left",
-        )
-        .agg(pl.len().alias("count"))
+    return lf.select(
+        pl.col("ts").cast(pl.Datetime(time_zone="UTC")).alias("ts")
     )
 
-    df = out.collect()
-    df = _normalize_boundaries(df)
+def _normalize_boundaries(df: pl.DataFrame) -> pl.DataFrame:
+    rename = {}
+    if "_lower_boundary" in df.columns: rename["_lower_boundary"] = "window_start"
+    if "_upper_boundary" in df.columns: rename["_upper_boundary"] = "window_end"
+    if rename:
+        df = df.rename(rename)
 
-    if "window_start" not in df.columns:
-        if "ts" in df.columns:
-            df = df.rename({"ts": "window_start"}).with_columns(
-                pl.col("window_start").cast(pl.Datetime)
-            )
-        df = df.with_columns(
-            (pl.col("window_start") + pl.duration(**_period_to_kwargs(period))).alias("window_end")
-        ).select(["window_start", "window_end", "count"]).sort("window_start")
-    else:
-        df = df.select(["window_start", "window_end", "count"])
+    # Casts + tri final
+    for c in ("window_start", "window_end"):
+        if c in df.columns:
+            df = df.with_columns(pl.col(c).cast(pl.Datetime(time_zone="UTC")))
+    if "count" in df.columns:
+        df = df.with_columns(pl.col("count").cast(pl.Int64))
+    if "window_start" in df.columns:
+        df = df.sort("window_start")
 
     return df
+
 def _period_to_kwargs(period: str) -> dict:
     if period.endswith("h"):
         return {"hours": int(period[:-1])}
@@ -71,7 +44,33 @@ def _period_to_kwargs(period: str) -> dict:
         return {"days": int(period[:-1])}
     raise ValueError(f"Unsupported period: {period}")
 
-def write_parquet(df: pl.DataFrame, granularity: str):
+def compute_window(lf: pl.LazyFrame, *, every: str, period: str) -> pl.DataFrame:
+    out = (
+        lf.sort("ts")
+          .group_by_dynamic(
+              index_column="ts",
+              every=every,
+              period=period,
+              closed="left",
+              include_boundaries=True,
+              label="left",
+          )
+          .agg(pl.len().alias("count"))
+    )
+
+    df = out.collect(streaming=True)
+    df = _normalize_boundaries(df)
+
+    if "window_start" not in df.columns:
+        if "ts" in df.columns:
+            df = df.rename({"ts": "window_start"})
+        df = df.with_columns(
+            (pl.col("window_start") + pl.duration(**_period_to_kwargs(period))).alias("window_end")
+        ).select(["window_start", "window_end", "count"]).sort("window_start")
+
+    return df.select(["window_start", "window_end", "count"])
+
+def write_parquet(df: pl.DataFrame, granularity: str) -> None:
     outdir = METRICS_ROOT / granularity
     outdir.mkdir(parents=True, exist_ok=True)
     outpath = outdir / f"part-{int(time.time())}.parquet"
@@ -80,16 +79,30 @@ def write_parquet(df: pl.DataFrame, granularity: str):
 
 def main():
     logger.remove(); logger.add(lambda m: print(m, end=""))
-    lf = load_lazy()
 
-    tumbling_1h = compute_window(lf, every="1h", period="1h")
-    write_parquet(tumbling_1h, "tumbling-1h")
+    try:
+        lf = load_lazy()
+    except Exception as e:
+        logger.warning(f"[windowed] nothing to process ({e})")
+        return
 
-    tumbling_1d = compute_window(lf, every="1d", period="1d")
-    write_parquet(tumbling_1d, "tumbling-1d")
+    t1h = compute_window(lf, every="1h", period="1h")
+    if t1h.height > 0:
+        write_parquet(t1h, "tumbling-1h")
+    else:
+        logger.info("[windowed] tumbling-1h -> empty")
 
-    sliding_1h_30m = compute_window(lf, every="30m", period="1h")
-    write_parquet(sliding_1h_30m, "sliding-1h-step-30m")
+    t1d = compute_window(lf, every="1d", period="1d")
+    if t1d.height > 0:
+        write_parquet(t1d, "tumbling-1d")
+    else:
+        logger.info("[windowed] tumbling-1d -> empty")
+
+    s1h30 = compute_window(lf, every="30m", period="1h")
+    if s1h30.height > 0:
+        write_parquet(s1h30, "sliding-1h-step-30m")
+    else:
+        logger.info("[windowed] sliding-1h-step-30m -> empty")
 
 if __name__ == "__main__":
     main()
