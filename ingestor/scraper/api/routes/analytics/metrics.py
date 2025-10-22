@@ -132,13 +132,15 @@ def get_aggregate(to: str, bucket: Literal["day", "hour"], from_: str = Query(al
                 raise HTTPException(detail=database_error, status_code=404)
             else:
                 oldest = query.sort_values("ts").groupby("source").tail(1).copy()
-                oldest["ts"] = oldest["ts"].dt.strftime('%Y-%m-%d %H:%M:%S')
+                for col in oldest.select_dtypes(include=['datetime64', 'datetimetz']).columns:
+                    oldest[col] = oldest[col].dt.strftime('%Y-%m-%d %H:%M:%S')
                 oldest = oldest.to_dict(orient="records")
 
                 latest = query.sort_values("ts").groupby("source").head(1).copy()
-                latest["ts"] = latest["ts"].dt.strftime('%Y-%m-%d %H:%M:%S')
+                for col in latest.select_dtypes(include=['datetime64', 'datetimetz']).columns:
+                    latest[col] = latest[col].dt.strftime('%Y-%m-%d %H:%M:%S')
                 latest = latest.to_dict(orient="records")
-
+                
                 count = query["symbol"].value_counts().to_dict()
                 avg = query.groupby("symbol")["price_usd"].mean().to_dict()
 
