@@ -26,7 +26,8 @@ dependencies = [
     "feedparser",
     "pytest",
     "fastapi",
-    "typer"
+    "typer",
+    "pandas"
 ]
 
 
@@ -35,4 +36,5 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["scraper", "builder"]
+where = ["."]
+include = ["ingestor*"]
