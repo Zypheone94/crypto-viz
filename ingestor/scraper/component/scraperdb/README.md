@@ -20,7 +20,7 @@ pip install -e .
 
 ## 2. Créer / initialiser le schéma
 ```bash
-python3 -m scrapper.scrapperdb.duck_schema
+python3 -m scrapper.scraperdb.duck_schema
 ```
 La fonction `init_schema()` est désormais réutilisée par l'API pour s'assurer que
 le schema est à jour avant l'ingestion des Parquet.
