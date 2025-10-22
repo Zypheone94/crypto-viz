@@ -18,6 +18,9 @@ from typing import Iterable, Literal
 import duckdb
 from ingestor.scraper.component.scrapperdb.duck_schema import apply_schema
 
+from  scraper.component.scrapperdb.duck_schema import ensure_physical_tables
+
+
 logger = logging.getLogger(__name__)
 
 PARQUET_GLOB_ENV = "CRYPTO_VIZ_PARQUET_GLOB"
@@ -60,7 +63,7 @@ def get_warehouse_path() -> Path:
     if override:
         return Path(override)
     base_dir = _resolve_base_dir()
-    return base_dir / "scrapper" / "data" / "duck" / "warehouse.duckdb"
+    return base_dir / "scraper" / "data" / "duck" / "warehouse.duckdb"
 
 def _build_files_signature(files: list[str]) -> str | None:
     if not files:
@@ -96,7 +99,7 @@ def _refresh_warehouse(files: list[str]) -> None:
     file_array_sql = _format_file_array(files)
 
     with duckdb.connect(str(warehouse_path)) as con:
-        apply_schema(con)
+        ensure_physical_tables(con)
 
         # Reset tables
         for table in ["metrics_trending", "metrics_sources_daily", "metrics_delta",
