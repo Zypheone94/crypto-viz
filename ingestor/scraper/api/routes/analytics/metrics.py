@@ -6,7 +6,6 @@ import duckdb
 import glob
 import os
 
-from ingestor.scraper.api.utils.duckdb_client import read_latest_snapshot
 from ingestor.scraper.api.utils.json_api_res_template import JsonApiTemplate
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
@@ -119,14 +118,36 @@ def get_top(
 
 @router.get("/aggregate")
 def get_aggregate(to: str, bucket: Literal["day", "hour"], from_: str = Query(alias="from")):
+    database_error = ApiResponse._create_response(level="warning", msg=f"Database not found at {DB_FILE}", response=[])
+    no_data_found = ApiResponse._create_response(level="info", msg=f"Nothing found for the selected period", response=[])
 
     if not os.path.exists(DB_FILE):
-        raise HTTPException(status_code=404, detail=f"Database not found at {DB_FILE}")
+        raise HTTPException(detail=no_data_found, status_code=404)
     else :
-        print('ok')
         with duckdb.connect(database=DB_FILE) as con:
-            query = con.sql(f"SELECT * FROM articles WHERE fetched_at BETWEEN '{parse_datetime(from_)}' AND '{parse_datetime(to)}'")
+            query = con.sql(f"SELECT * FROM articles WHERE fetched_at BETWEEN '{parse_datetime(from_)}' AND '{parse_datetime(to)}'").df()
             print(query)
-            con.close()
+            if len(query) == 0:
+                con.close()
+                raise HTTPException(detail=database_error, status_code=404)
+            else:
+                oldest = query.sort_values("ts").groupby("source").tail(1).copy()
+                oldest["ts"] = oldest["ts"].dt.strftime('%Y-%m-%d %H:%M:%S')
+                oldest = oldest.to_dict(orient="records")
 
-    return JSONResponse(content={"count": "count"}, status_code=200)
+                latest = query.sort_values("ts").groupby("source").head(1).copy()
+                latest["ts"] = latest["ts"].dt.strftime('%Y-%m-%d %H:%M:%S')
+                latest = latest.to_dict(orient="records")
+
+                count = query["symbol"].value_counts().to_dict()
+                avg = query.groupby("symbol")["price_usd"].mean().to_dict()
+
+                json_object = {
+                    "oldest": oldest,
+                    "latest": latest,
+                    "count": count,
+                    "avg": avg
+                }
+                con.close()
+                datas = ApiResponse._create_response(level="info", msg=f"Datas found", response=json_object)
+                return JSONResponse(content=datas, status_code=200)
