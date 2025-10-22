@@ -1,6 +1,6 @@
 # DuckDB – Schéma minimal
 
-Actuellement : seulement la création des 5 tables vides (aucune ingestion Parquet encore).
+Actuellement : création des tables et index partagés avec l'API (`duckdb_client`).
 
 Tables créées :
 1. articles
@@ -8,6 +8,7 @@ Tables créées :
 3. metrics_delta
 4. metrics_sources_daily
 5. metrics_trending
+6. latest
 
 ## 1. Pré-requis et installation
 ```bash
@@ -21,7 +22,8 @@ pip install -e .
 ```bash
 python3 -m scrapper.scrapperdb.duck_schema
 ```
-(`--schema-only` est optionnellement supporté mais donne le même résultat actuellement)
+La fonction `init_schema()` est désormais réutilisée par l'API pour s'assurer que
+le schema est à jour avant l'ingestion des Parquet.
 
 ## 3. Vérifier les tables
 ```bash

@@ -1,0 +1,25 @@
+﻿.trend-up   { color: #00c853; font-weight: 600; }
+.trend-down { color: #d32f2f; font-weight: 600; }
+.trend-flat { color: #757575; }
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { padding: 6px 8px; border-bottom: 1px solid #eee; }
+.switcher {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.tab {
+  border: 1px solid #ddd;
+  background: #fafafa;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.tab.active {
+  background: #111827;
+  color: #fff;
+  border-color: #111827;
+}
+.panel {
+  min-height: 420px; /* évite le "jump" lors du switch */
+}

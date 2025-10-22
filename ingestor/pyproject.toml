@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Ingestor : scraper + builder"
 authors = [{name = "Max", email = "maxime.durand@epitech.eu"}]
 readme = "README.md"
-requires-python = ">=3.13.5"
+requires-python = ">=3.12"
 dependencies = [
     "certifi",
     "charset-normalizer",
@@ -14,18 +14,19 @@ dependencies = [
     "setuptools",
     "urllib3",
     "fastapi",
-    "uvicorn[standard]",
+    "uvicorn",
     "python-dotenv",
     "scrapy",
     "twisted",
     "selenium",
     "webdriver-manager",
     "fake-useragent",
-    "requests",
     "pydantic",
     "kafka-python",
     "feedparser",
-    "pytest"
+    "pytest",
+    "fastapi",
+    "typer"
 ]
 
 

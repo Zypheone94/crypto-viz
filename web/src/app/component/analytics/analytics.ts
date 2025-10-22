@@ -2,11 +2,13 @@ import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { interval, Subscription } from 'rxjs';
 import { TimeSeries } from './components/time-series';
+import {TrendingNowComponent} from './components/trending-now';
+import {MetricsSwitcherComponent} from './components/metrics-switcher';
 
 @Component({
   selector: 'app-analytics',
   standalone: true,
-  imports: [CommonModule, TimeSeries],
+  imports: [CommonModule, MetricsSwitcherComponent],
   templateUrl: './analytics.html',
   styleUrls: ['./analytics.css'],
 })
