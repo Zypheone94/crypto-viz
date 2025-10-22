@@ -3,27 +3,23 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
-# === Chemins en relatif, comme ton exemple ===
-# .../ingestor/builder/load_trending_to_duck.py
-#       ^^^^^^^  ^^^^^^^
+
 DELTA_DIR = (
-    Path(__file__).parent.parent.parent.parent  # -> .../ingestor/
+    Path(__file__).parent.parent.parent.parent
     / "data" / "metrics" / "delta" / "tumbling-1h"
 )
 WAREHOUSE_DB = (
-    Path(__file__).parent.parent.parent  # -> .../ingestor/
+    Path(__file__).parent.parent.parent
     / "data" / "duck" / "warehouse.duckdb"
 )
 
-# Labels stockés dans la table cible
-WINDOW_LABEL = "1h"     # tumbling-1h
-BASELINE_LABEL = "prev" # vs fenêtre précédente
-TOP_LIMIT = 100         # garde jusqu'à 100 lignes (ajuste si besoin)
+WINDOW_LABEL = "1h"
+BASELINE_LABEL = "prev"
+TOP_LIMIT = 100
 
 def read_delta() -> pl.DataFrame:
     patt = str(DELTA_DIR / "*.parquet")
-    df = pl.read_parquet(patt)  # lève si rien à lire -> c'est bien, on voit l'erreur
-    # Colonnes attendues
+    df = pl.read_parquet(patt)
     need = {"window_start", "window_end", "count", "prev_count", "delta", "delta_pct"}
     missing = need - set(df.columns)
     if missing:
@@ -46,11 +42,9 @@ def to_trending(df: pl.DataFrame) -> pl.DataFrame:
     if df.is_empty():
         return df
 
-    # Si pas de "source" dans le delta, on met GLOBAL
     if "source" not in df.columns:
         df = df.with_columns(pl.lit("GLOBAL").alias("source"))
 
-    # Rank par delta_pct décroissant
     tr = (
         df.filter(pl.col("delta_pct").is_not_null())
           .with_columns([
