@@ -81,25 +81,15 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
 
     print("Crypto Viz Scraper")
-    # Set data path to the existing ingestor/data folder (absolute path)
-    # main.py is in ingestor/scraper/, so we go up one level to ingestor/, then to data/
-    script_dir = Path(__file__).parent  # ingestor/scraper/
-    ingestor_dir = script_dir.parent     # ingestor/
-    data_dir = ingestor_dir / "data"     # ingestor/data/
+    # Set default data path to parent directory data folder (absolute path)
+    default_data_path = str(Path(__file__).parent.parent / "data")
+    data_path = os.getenv('DATA_PATH', default_data_path)
     
-    # Use environment variable if set, otherwise use the calculated path
-    env_data_path = os.getenv('DATA_PATH')
-    if env_data_path:
-        # If env path is relative, make it relative to the script directory
-        if not Path(env_data_path).is_absolute():
-            data_path = str(script_dir / env_data_path)
-        else:
-            data_path = env_data_path
-    else:
-        data_path = str(data_dir)
+    # Convert relative path to absolute if needed
+    if not Path(data_path).is_absolute():
+        data_path = str(Path(__file__).parent / data_path)
     
-    # Normalize the path and set it in environment for other modules
-    data_path = str(Path(data_path).resolve())
+    # Set the absolute path in environment for other modules to use
     os.environ['DATA_PATH'] = data_path
     
     print(f"Data directory: {data_path}")
