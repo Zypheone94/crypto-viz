@@ -2,67 +2,84 @@
 ChatGPT Prompt Generator for Cryptocurrency Analysis
 """
 import json
-import os
 from pathlib import Path
 from datetime import datetime, timezone
-import threading
 from typing import List, Dict, Any
+import glob
 
-from .models_crypto import ChatGPTPrompt
-
-# Import shutdown_event from main
-from . import main
-shutdown_event = main.shutdown_event
+from models_crypto import ChatGPTPrompt
+from logging_json import log_json
 
 
-def load_crypto_data(data_path: Path) -> List[Dict[str, Any]]:
+def load_crypto_data(data_dir: Path) -> List[Dict[str, Any]]:
     """
-    Load the most recent cryptocurrency data from NDJSON file.
+    Load the most recent cryptocurrency data from NDJSON files.
     
     Args:
-        data_path: Path to the data directory
+        data_dir: Path to the data directory
         
     Returns:
         List of cryptocurrency data dictionaries
     """
-    ndjson_path = data_path / "articles.ndjson"
-    if not ndjson_path.exists():
-        print(f"No data file found at {ndjson_path}")
+    # Check both scraper/data and parent data directories
+    current_dir = Path(__file__).resolve().parent
+    scraper_data_dir = current_dir.parent / "data"
+    parent_data_dir = current_dir.parent.parent / "data"
+    
+    data_files = []
+    
+    # Look for the most recent price data files in both locations
+    for check_dir in [scraper_data_dir, parent_data_dir]:
+        raw_data_pattern = check_dir / "raw" / "*" / "*" / "*" / "part-coindesk_price_data-*.ndjson"
+        found_files = list(glob.glob(str(raw_data_pattern)))
+        data_files.extend(found_files)
+    
+    if not data_files:
+        log_json("warning", "No CoinDesk price data files found", 
+               patterns=[str(scraper_data_dir / "raw"), str(parent_data_dir / "raw")])
         return []
     
-    # Load the latest crypto price data
-    crypto_prices = []
+    # Sort by filename (timestamp) to get most recent
+    data_files.sort(reverse=True)
+    most_recent_file = data_files[0]
+    
+    log_json("info", "Loading crypto data for prompt generation", file=most_recent_file)
+    
+    # Load the crypto data
+    crypto_data = []
     try:
-        with open(ndjson_path, 'r', encoding='utf-8') as f:
+        with open(most_recent_file, 'r', encoding='utf-8') as f:
             for line in f:
+                line = line.strip()
+                if not line:
+                    continue
                 try:
-                    item = json.loads(line.strip())
-                    if item.get('type') == 'crypto_price' and item.get('source') == 'coingecko':
-                        crypto_prices.append(item)
-                except json.JSONDecodeError:
+                    item = json.loads(line)
+                    if (item.get('type') == 'crypto_price' and 
+                        item.get('source') == 'coindesk_price' and 
+                        item.get('current_price') is not None):
+                        crypto_data.append(item)
+                except json.JSONDecodeError as e:
+                    log_json("debug", f"JSON decode error: {str(e)}", line=line[:100])
                     continue
     except Exception as e:
-        print(f"Error loading crypto data: {e}")
+        log_json("error", f"Error loading crypto data: {str(e)}")
         return []
     
-    # Group by symbol and keep most recent for each
-    crypto_by_symbol = {}
-    for item in crypto_prices:
-        symbol = item.get('symbol')
-        if not symbol:
-            continue
-            
-        if symbol not in crypto_by_symbol or \
-           item.get('fetched_at', '') > crypto_by_symbol[symbol].get('fetched_at', ''):
-            crypto_by_symbol[symbol] = item
+    # Sort by market cap if available, otherwise by current price
+    def sort_key(item):
+        market_cap = item.get('market_cap')
+        if market_cap and market_cap > 0:
+            return market_cap
+        # If no market cap, estimate by price (higher price coins first)
+        price = item.get('current_price', 0)
+        return price * 1000000  # Give some weight to price
     
-    # Sort by market cap rank
-    sorted_crypto = sorted(
-        crypto_by_symbol.values(), 
-        key=lambda x: x.get('market_cap_rank', float('inf'))
-    )
+    sorted_data = sorted(crypto_data, key=sort_key, reverse=True)
     
-    return sorted_crypto
+    log_json("info", f"Loaded {len(sorted_data)} cryptocurrencies for prompt generation",
+             sample_symbols=[item.get('symbol') for item in sorted_data[:3]])
+    return sorted_data
 
 
 def generate_prompt(crypto_data: List[Dict[str, Any]]) -> str:
@@ -84,35 +101,66 @@ def generate_prompt(crypto_data: List[Dict[str, Any]]) -> str:
     # Format the data for the prompt
     coins_text = ""
     for i, coin in enumerate(top_coins, 1):
-        price_change = coin.get('price_change_percentage_24h', 0)
-        change_arrow = "↑" if price_change >= 0 else "↓"
+        price_change = coin.get('price_change_percentage_24h') or 0
+        change_arrow = "📈" if price_change >= 0 else "📉"
         
-        coins_text += f"{i}. {coin.get('name')} ({coin.get('symbol')})\n"
-        coins_text += f"   Price: ${coin.get('current_price', 0):,.2f}\n"
-        coins_text += f"   24h Change: {change_arrow} {abs(price_change):.2f}%\n"
-        coins_text += f"   Market Cap: ${coin.get('market_cap', 0):,.0f}\n"
-        coins_text += f"   Market Cap Rank: #{coin.get('market_cap_rank', 'N/A')}\n"
-        coins_text += f"   24h Volume: ${coin.get('total_volume', 0):,.0f}\n\n"
+        # Handle null values gracefully
+        price = coin.get('current_price') or 0
+        market_cap = coin.get('market_cap')
+        volume = coin.get('total_volume')
+        rank = coin.get('market_cap_rank')
+        
+        coins_text += f"{i}. {coin.get('name', 'Unknown')} ({coin.get('symbol', 'N/A')})\n"
+        coins_text += f"   Price: ${price:,.4f}\n"
+        
+        if price_change:
+            coins_text += f"   24h Change: {change_arrow} {abs(price_change):.2f}%\n"
+        else:
+            coins_text += "   24h Change: No data\n"
+            
+        if market_cap and market_cap > 0:
+            coins_text += f"   Market Cap: ${market_cap:,.0f}\n"
+        else:
+            coins_text += "   Market Cap: No data\n"
+            
+        if rank:
+            coins_text += f"   Market Cap Rank: #{rank}\n"
+        else:
+            coins_text += "   Market Cap Rank: No data\n"
+            
+        if volume and volume > 0:
+            coins_text += f"   24h Volume: ${volume:,.0f}\n"
+        else:
+            coins_text += "   24h Volume: No data\n"
+            
+        coins_text += "\n"
     
     # Create timestamp
     timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
     
+    # Count how many have complete data
+    complete_data_count = sum(1 for coin in top_coins 
+                            if coin.get('market_cap') and coin.get('price_change_percentage_24h'))
+    
     # Generate the prompt
     prompt = f"""
-As a cryptocurrency financial analyst, provide insights on the current market conditions based on the following data from {timestamp}:
+As a cryptocurrency financial analyst, provide insights on the current market conditions based on the following CoinDesk price data from {timestamp}:
 
 {coins_text}
-Based on this data, please provide:
+📊 Data Completeness: {complete_data_count}/{len(top_coins)} cryptocurrencies have complete market data.
 
-1. A brief overview of the current crypto market conditions
-2. Notable price movements and their potential reasons
-3. Key market trends and patterns
-4. Short-term outlook (24-48 hours) for the top 3 cryptocurrencies
-5. Potential impacts of recent news events on these prices
-6. Technical analysis highlights for Bitcoin and Ethereum
-7. Risk assessment for the current market
+Based on this CoinDesk price data, please provide:
 
-Please structure your analysis in a clear, professional format suitable for investors.
+1. **Market Overview**: Current state of the cryptocurrency market
+2. **Price Analysis**: Notable price levels and movements for major cryptocurrencies
+3. **Market Trends**: Patterns visible in the available price data
+4. **Technical Outlook**: Short-term analysis for Bitcoin, Ethereum, and other major coins
+5. **Risk Assessment**: Current market risk factors and considerations
+6. **Data Insights**: What the available/missing data tells us about market transparency
+
+Please structure your analysis in a clear, professional format suitable for crypto investors and traders.
+
+Note: Some market cap and volume data may be incomplete due to CoinDesk data limitations.
 """
     return prompt.strip()
 
@@ -130,7 +178,7 @@ def save_prompt(prompt_text: str, top_coins: List[Dict[str, Any]], output_dir: P
     timestamp = datetime.now(timezone.utc)
     prompt_id = f"crypto_analysis_{timestamp.strftime('%Y%m%d_%H%M%S')}"
     
-    # Create the prompt object
+    # Create the prompt object with proper timestamp formatting
     prompt = ChatGPTPrompt(
         prompt_id=prompt_id,
         timestamp=timestamp.isoformat(),
@@ -142,19 +190,22 @@ def save_prompt(prompt_text: str, top_coins: List[Dict[str, Any]], output_dir: P
     prompts_dir = output_dir / "prompts"
     prompts_dir.mkdir(parents=True, exist_ok=True)
     
-    # Save as JSON
-    output_file = prompts_dir / f"{prompt_id}.json"
+    # Save as NDJSON format
+    output_file = prompts_dir / f"{prompt_id}.ndjson"
     with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(prompt.dict(), f, indent=2, ensure_ascii=False)
+        # Convert the prompt to dict and handle datetime serialization
+        prompt_dict = prompt.model_dump()
+        json.dump(prompt_dict, f, ensure_ascii=False, default=str, separators=(',', ':'))
+        f.write('\n')
     
-    print(f"Saved ChatGPT prompt to {output_file}")
+    log_json("info", "ChatGPT prompt saved as NDJSON", ndjson_file=str(output_file))
     
     # Save as TXT for easy copy/paste
     txt_output_file = prompts_dir / f"{prompt_id}.txt"
     with open(txt_output_file, 'w', encoding='utf-8') as f:
         f.write(prompt_text)
     
-    print(f"Saved plain text prompt to {txt_output_file}")
+    log_json("info", "ChatGPT prompt saved as text", txt_file=str(txt_output_file))
 
 
 def generate_chatgpt_prompt() -> None:
@@ -163,32 +214,28 @@ def generate_chatgpt_prompt() -> None:
     This function runs on a schedule.
     """
     try:
-        print("Generating ChatGPT prompt for cryptocurrency analysis...")
+        log_json("info", "Generating ChatGPT prompt for cryptocurrency analysis")
         
-        # Get data path from environment
-        data_path = Path(os.getenv("DATA_PATH", "./data"))
-        data_path.mkdir(parents=True, exist_ok=True)
+        # Get data path
+        current_dir = Path(__file__).resolve().parent
+        data_dir = current_dir.parent.parent / "data"
         
         # Load crypto data
-        crypto_data = load_crypto_data(data_path)
+        crypto_data = load_crypto_data(data_dir)
         
         if not crypto_data:
-            print("No cryptocurrency data available. Make sure the CoinGecko crawler has run.")
+            log_json("warning", "No cryptocurrency data available for prompt generation")
             return
             
-        print(f"Loaded data for {len(crypto_data)} cryptocurrencies")
+        log_json("info", f"Generating prompt with data for {len(crypto_data)} cryptocurrencies")
         
         # Generate prompt
         prompt_text = generate_prompt(crypto_data)
         
         # Save prompt
-        save_prompt(prompt_text, crypto_data[:10], data_path)
+        save_prompt(prompt_text, crypto_data[:10], data_dir)
         
-        # Schedule next run (every 6 hours by default)
-        if not shutdown_event.is_set():  # Import this from the main module
-            interval = int(os.getenv("PROMPT_GEN_INTERVAL", "21600"))  # 6 hours
-            print(f"Scheduling next prompt generation in {interval} seconds...")
-            threading.Timer(interval, generate_chatgpt_prompt).start()
+        log_json("info", "ChatGPT prompt generation completed successfully")
     
     except Exception as e:
-        print(f"Error generating ChatGPT prompt: {e}")
+        log_json("error", f"Error generating ChatGPT prompt: {str(e)}")

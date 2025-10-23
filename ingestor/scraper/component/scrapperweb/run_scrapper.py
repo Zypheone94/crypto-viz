@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 # Add the current directory to Python path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from main import run_server, shutdown_event
+from ingestor.scraper.main import run_server, shutdown_event
 
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully"""

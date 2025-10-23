@@ -26,6 +26,7 @@ class ArticleModel(BaseModel):
     published_at: datetime
     fetched_at: datetime
     content: Optional[str] = None
+    is_fallback: bool = False
 
     @staticmethod
     def generate_id(url: str, title: str) -> str:

@@ -80,6 +80,6 @@ class ChatGPTPrompt(BaseModel):
     """
     
     prompt_id: str = Field(..., description="Unique ID for the prompt")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now().isoformat())
+    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
     top_coins: List[Dict[str, Any]] = Field(..., description="List of top cryptocurrency data")
     prompt_text: str = Field(..., description="Generated prompt for ChatGPT")

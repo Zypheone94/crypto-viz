@@ -2,17 +2,10 @@ from scrapy.crawler import CrawlerRunner
 from scrapy.utils.log import configure_logging
 from scrapy.utils.project import get_project_settings
 from .spiders.coindesk_spider import CoinDeskSpider
-from .spiders.coingecko_spider import CoinGeckoSpider
-from twisted.internet import defer, asyncioreactor
-from twisted.internet.error import ReactorAlreadyInstalledError
+from .spiders.coindesk_price_spider import CoinDeskPriceSpider
+from twisted.internet import defer
 import os
 from pathlib import Path
-
-# Install Twisted asyncio reactor for compatibility with FastAPI
-try:
-    asyncioreactor.install()
-except ReactorAlreadyInstalledError:
-    pass  # Reactor may already be installed
 
 def setup_crawler(output_dir: str) -> CrawlerRunner:
     """Setup a Scrapy CrawlerRunner with proper settings."""
@@ -48,8 +41,8 @@ def setup_crawler(output_dir: str) -> CrawlerRunner:
 
 
 async def run_spiders(runner: CrawlerRunner):
-    """Run CoinDesk and CoinGecko spiders asynchronously."""
+    """Run CoinDesk news and CoinDesk price spiders asynchronously."""
     d1 = runner.crawl(CoinDeskSpider)
-    d2 = runner.crawl(CoinGeckoSpider)
+    d2 = runner.crawl(CoinDeskPriceSpider)
     # Wait for both crawls to finish
     await defer.DeferredList([d1, d2])

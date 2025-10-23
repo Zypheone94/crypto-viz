@@ -1,9 +1,9 @@
 import argparse
 from pathlib import Path
 
-from .logging_json import log_json
-from .rss import fetch_and_parse_all
-from .sink import write_to_sink
+from logging_json import log_json
+from rss import fetch_and_parse_all
+from sink import write_to_sink
 
 
 def main():

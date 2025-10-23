@@ -14,8 +14,8 @@ sys.path.insert(0, str(parent_dir))
 
 # Import after path setup
 try:
-    from models import ArticleModel
-    from html_utils import strip_html_tags
+    from ..models import ArticleModel
+    from ..html_utils import strip_html_tags
 except ImportError as e:
     print(f"Import error: {e}")
     sys.exit(1)

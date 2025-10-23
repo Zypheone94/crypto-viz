@@ -5,9 +5,9 @@ import hashlib
 from typing import Iterable, Tuple, Optional
 from pathlib import Path
 
-from .logging_json import log_json
-from .models import ArticleModel
-from .io_ndjson import write_ndjson as write_to_filesystem
+from logging_json import log_json
+from models import ArticleModel
+from io_ndjson import write_ndjson as write_to_filesystem
 
 # Check if kafka-python is installed
 KAFKA_AVAILABLE = False

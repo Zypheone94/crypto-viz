@@ -1,25 +1,15 @@
-<<<<<<< HEAD
 import sys
 import os
 import signal
+import time
+import threading
 from pathlib import Path
-from threading import Event
 from dotenv import load_dotenv
+from threading import Event
 
-# Add the scraper directory to Python path
-sys.path.append(str(Path(__file__).parent))
+current_dir = Path(__file__).parent
+sys.path.insert(0, str(current_dir))
 
-# Add the parent directory (ingestor) to Python path
-sys.path.append(str(Path(__file__).parent.parent))
-
-# Scrapy imports
-from scraperweb.scrapers.spiders.coindesk_spider import CoinDeskSpider
-from scraperweb.rss_scraper_poc import main as run_rss_scraper
-from scraperweb.main import main as run_spider_scraper
-from scrapy.utils.project import get_project_settings
-from scrapy.crawler import CrawlerProcess
-
-# Global shutdown event
 shutdown_event = Event()
 
 def signal_handler(signum, frame):
@@ -27,104 +17,119 @@ def signal_handler(signum, frame):
     shutdown_event.set()
     sys.exit(0)
 
-def run_crawler():
-    """Run multiple Scrapy spiders."""
-    settings = get_project_settings()
+def run_rss_scraper():
+    """Run the RSS scraper to fetch from both CoinDesk and CoinTelegraph."""
+    from scraperweb.scrapers.rss_scraper_poc import main as run_rss_scraper_main
+    sources = os.getenv("SOURCES", "coindesk,cointelegraph").split(",")
+    print(f"Running RSS scraper for sources: {', '.join(sources)}...")
+    run_rss_scraper_main()
+    
+    # Schedule the next run if not shutting down
+    if not shutdown_event.is_set():
+        interval = int(os.getenv("FETCH_INTERVAL", "300"))
+        print(f"Scheduling next run in {interval} seconds...")
+        threading.Timer(interval, run_rss_scraper).start()
 
-    # Setup directories - use the data/raw directory structure
-    data_path = Path(os.getenv("DATA_PATH", str(Path(__file__).parent.parent / "data" / "raw")))
-    data_path.mkdir(parents=True, exist_ok=True)
-    settings.set("OUTPUT_DIR", str(data_path))
-
-    # Import all spiders
+def run_price_scraper():
+    """Run the CoinDesk price scraper with AI summaries."""
+    print("Running CoinDesk price and article scraper...")
+    
     try:
-        # Import spiders
-        from scraperweb.scrapers.spiders.coindesk_spider import CoinDeskSpider
-        from scraperweb.scrapers.spiders.coingecko_spider import CoinGeckoSpider
-        from scraperweb.scrapers.pipelines import CryptoDataPipeline
+        from scraperweb.scrapers.coindesk_price_data_scraper import run_coindesk_price_scraper
         
-        # Set pipeline
-        settings.set("ITEM_PIPELINES", {
-            CryptoDataPipeline: 300,
-        })
+        # Run the price scraper
+        result = run_coindesk_price_scraper()
         
-        # Set custom setting for file output naming
-        from datetime import datetime
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        settings.set("OUTPUT_FILE_PREFIX", f"scrapy_{timestamp}")
-        
-        # Return the list of spiders to run
-        return [CoinDeskSpider, CoinGeckoSpider], settings
-        
+        if result:
+            crypto_count = len(result.get('crypto_data', []))
+            article_count = len(result.get('article_summaries', []))
+            print("CoinDesk price scraping completed:")
+            print(f"  - {crypto_count} cryptocurrencies with price data")
+            print(f"  - {article_count} articles with AI summaries")
+        else:
+            print("CoinDesk price scraping completed but no data found.")
+            
     except Exception as e:
-        print(f"Error configuring spiders: {e}")
-        import traceback
-        print(traceback.format_exc())
-        return [], settings
+        print(f"Error in CoinDesk price scraper: {e}")
+    
+    # Schedule the next run
+    if not shutdown_event.is_set():
+        # Run price scraper every hour by default
+        interval = int(os.getenv("CRYPTO_FETCH_INTERVAL", "3600"))
+        print(f"Scheduling next price scraper run in {interval} seconds...")
+        threading.Timer(interval, run_price_scraper).start()
 
-    # Logs
-    log_path = data_path / "logs"
-    log_path.mkdir(parents=True, exist_ok=True)
-    settings.set("LOG_FILE", str(log_path / "scraper.log"))
-
-    # Optional Scrapy configs
-    settings.set("ROBOTSTXT_OBEY", False)
-    settings.set("DOWNLOAD_DELAY", 2)
-    settings.set("CONCURRENT_REQUESTS", 1)
-    settings.set("RANDOMIZE_DOWNLOAD_DELAY", 0.5)
-    settings.set("USER_AGENT", "crypto-viz-scraper/1.0")
-    settings.set("LOG_LEVEL", "DEBUG")
-
-    process = CrawlerProcess(settings)
-    process.crawl(CoinDeskSpider)
-    process.start()
+def run_server():
+    """Run the FastAPI server in a separate thread."""
+    from scraperweb.api import run_server as start_api_server
+    
+    api_thread = threading.Thread(target=start_api_server, daemon=True)
+    api_thread.start()
+    print(f"API server running on port {os.getenv('SCRAPER_PORT', '8001')}")
+    return api_thread
 
 def main():
-    # Try to load env from either root or scraperweb directory
-    env_locations = [
-        Path(__file__).resolve().parent / ".env",
-        Path(__file__).resolve().parent / "scraperweb" / ".env"
-    ]
-    
-    for env_file in env_locations:
-        if env_file.exists():
-            print(f"Loading environment from: {env_file}")
-            load_dotenv(env_file)
-            break
+    # Load configuration from .env
+    env_file = Path(__file__).resolve().parent / "scraperweb" / ".env"
+    if env_file.exists():
+        print(f"Loading configuration from: {env_file}")
+        load_dotenv(env_file)
+    else:
+        print("Warning: No .env configuration file found. Using default values.")
 
-    # Setup signal handlers
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    print("=== Starting Crypto Viz Scraper ===")
-    print(f"Data directory: {os.getenv('DATA_PATH', './data')}")
-    print(f"Fetch interval: {os.getenv('FETCH_INTERVAL', '300')} seconds")
+    print("Crypto Viz Scraper")
+    # Set data path to the existing ingestor/data folder (absolute path)
+    # main.py is in ingestor/scraper/, so we go up one level to ingestor/, then to data/
+    script_dir = Path(__file__).parent  # ingestor/scraper/
+    ingestor_dir = script_dir.parent     # ingestor/
+    data_dir = ingestor_dir / "data"     # ingestor/data/
+    
+    # Use environment variable if set, otherwise use the calculated path
+    env_data_path = os.getenv('DATA_PATH')
+    if env_data_path:
+        # If env path is relative, make it relative to the script directory
+        if not Path(env_data_path).is_absolute():
+            data_path = str(script_dir / env_data_path)
+        else:
+            data_path = env_data_path
+    else:
+        data_path = str(data_dir)
+    
+    # Normalize the path and set it in environment for other modules
+    data_path = str(Path(data_path).resolve())
+    os.environ['DATA_PATH'] = data_path
+    
+    print(f"Data directory: {data_path}")
+    print(f"RSS fetch interval: {os.getenv('FETCH_INTERVAL', '300')} seconds")
+    print(f"Crypto data fetch interval: {os.getenv('CRYPTO_FETCH_INTERVAL', '3600')} seconds")
+    print(f"Prompt generation interval: {os.getenv('PROMPT_GEN_INTERVAL', '21600')} seconds")
+    print(f"API server port: {os.getenv('SCRAPER_PORT', '8000')}")
+    print(f"Sources: {os.getenv('SOURCES', 'coindesk,cointelegraph')}")
+    print(f"Force write: {os.getenv('FORCE_WRITE', 'false')}")
+    print("Price source: CoinDesk Price Page (https://www.coindesk.com/price)")
 
     try:
-        print("Running RSS scraper...")
+        # Start API server in a separate thread
+        run_server()
+        
+        # Run RSS scraper immediately and schedule subsequent runs
         run_rss_scraper()
-
-        print("Running either Scrapy spiders OR CoinDesk crawler (not both due to Reactor limitations)")
-        # Choose one of these, not both - can't restart the reactor
-        # Option 1: Run spider scraper from scraperweb.main
-        try:
-            run_spider_scraper()
-        except Exception as e:
-            print(f"Spider scraper error: {e}")
-            import traceback
-            print(traceback.format_exc())
+        
+        # Run CoinDesk price scraper immediately and schedule subsequent runs
+        run_price_scraper()
+        
+        # Import and run the ChatGPT prompt generator
+        from scraperweb.prompt_generator import generate_chatgpt_prompt
+        generate_chatgpt_prompt()
+        
+        # Block the main thread to keep the program running
+        # This is needed since the API server runs in a daemon thread
+        while not shutdown_event.is_set():
+            time.sleep(1)
             
-            # Option 2: Try run_crawler instead if the first one failed
-            print("Trying direct crawler approach instead...")
-            try:
-                run_crawler()
-                print("Crawler completed successfully.")
-            except Exception as e:
-                print(f"Crawler error: {e}")
-                import traceback
-                print(traceback.format_exc())
-
-        print("All scraping tasks completed.")
     except KeyboardInterrupt:
         print("Shutting down scraper...")
         shutdown_event.set()
@@ -134,46 +139,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-=======
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from api.routes import health, metrics
-from api.utils.middleware import Middleware
-import os
-from dotenv import load_dotenv
-
-app = FastAPI()
-
-env_path = os.path.join(os.path.dirname(__file__), '../../../.env')
-load_dotenv(env_path)
-
-angular_port = os.getenv("ANGULAR_PORT")
-origins = [
-    f'http://localhost:{angular_port}'
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"]
-)
-
-app.add_middleware(Middleware)
-
-app.include_router(health.router)
-app.include_router(metrics.router)
-"""
-REMINDER : You must start your api path by : 
-- API (if you do something with the api, health, etc...)
-- Scraper (if your working with the scraper)
-- Builder (if your working with the scraper)
-it is necessary for the service in the logger to work
-"""
-
-
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
->>>>>>> ca5ee0f86d8c1013ec8921cb470f3c2884b419e1

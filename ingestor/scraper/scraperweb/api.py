@@ -36,7 +36,9 @@ def get_last_write_time() -> Optional[datetime]:
     """Get the last write time by checking the most recent NDJSON file."""
     global LAST_WRITE_TIME
     
-    data_path = Path(os.getenv("DATA_PATH", "./data"))
+    # Default to parent directory data folder
+    default_data_path = str(Path(__file__).parent.parent.parent / "data")
+    data_path = Path(os.getenv("DATA_PATH", default_data_path))
     raw_path = data_path / "raw"
     
     if not raw_path.exists():

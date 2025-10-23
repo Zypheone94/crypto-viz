@@ -1,0 +1,87 @@
+As a cryptocurrency financial analyst, provide insights on the current market conditions based on the following CoinDesk price data from 2025-10-23 20:52:30 UTC:
+
+1. Dogecoin (DOGE)
+   Price: $109,917.5820
+   24h Change: 📈 582.08%
+   Market Cap: $16,157,884,554,000,000
+   Market Cap Rank: #8
+   24h Volume: $807,894,227,700,000
+
+2. Tether (USDT)
+   Price: $109,931.3520
+   24h Change: 📈 352.08%
+   Market Cap: $13,191,762,240,000,000
+   Market Cap Rank: #3
+   24h Volume: $659,588,112,000,000
+
+3. TRON (TRX)
+   Price: $109,917.5820
+   24h Change: 📈 582.08%
+   Market Cap: $10,991,758,200,000,000
+   Market Cap Rank: #9
+   24h Volume: $549,587,910,000,000
+
+4. XRP (XRP)
+   Price: $109,917.5820
+   24h Change: 📈 582.08%
+   Market Cap: $6,155,384,592,000,000
+   Market Cap Rank: #4
+   24h Volume: $307,769,229,600,000
+
+5. USD Coin (USDC)
+   Price: $109,917.5820
+   24h Change: 📈 582.08%
+   Market Cap: $3,847,115,370,000,000
+   Market Cap Rank: #6
+   24h Volume: $192,355,768,500,000
+
+6. Cardano (ADA)
+   Price: $109,917.5820
+   24h Change: 📈 582.08%
+   Market Cap: $3,847,115,370,000,000
+   Market Cap Rank: #7
+   24h Volume: $192,355,768,500,000
+
+7. Polygon (MATIC)
+   Price: $109,917.9320
+   24h Change: 📈 932.08%
+   Market Cap: $1,099,179,320,000,000
+   Market Cap Rank: #10
+   24h Volume: $54,958,966,000,000
+
+8. Chainlink (LINK)
+   Price: $109,918.9120
+   24h Change: 📈 912.08%
+   Market Cap: $109,918,912,000,000
+   Market Cap Rank: #13
+   24h Volume: $5,495,945,600,000
+
+9. Solana (SOL)
+   Price: $109,917.5820
+   24h Change: 📈 582.08%
+   Market Cap: $51,661,263,540,000
+   Market Cap Rank: #5
+   24h Volume: $2,583,063,177,000
+
+10. Cosmos (ATOM)
+   Price: $109,917.9320
+   24h Change: 📈 932.08%
+   Market Cap: $42,867,993,480,000
+   Market Cap Rank: #50
+   24h Volume: $2,143,399,674,000
+
+
+📊 Data Completeness: 10/10 cryptocurrencies have complete market data.
+
+Based on this CoinDesk price data, please provide:
+
+1. **Market Overview**: Current state of the cryptocurrency market
+2. **Price Analysis**: Notable price levels and movements for major cryptocurrencies
+3. **Market Trends**: Patterns visible in the available price data
+4. **Technical Outlook**: Short-term analysis for Bitcoin, Ethereum, and other major coins
+5. **Risk Assessment**: Current market risk factors and considerations
+6. **Data Insights**: What the available/missing data tells us about market transparency
+
+Please structure your analysis in a clear, professional format suitable for crypto investors and traders.
+
+Note: Some market cap and volume data may be incomplete due to CoinDesk data limitations.
