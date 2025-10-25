@@ -1,0 +1,1 @@
+{"id": "3ac28318c8b997468dc03c15419c5e823bc30673", "title": "Bad date should go to _corrupt", "url": "https://ex/bad1", "source": "test", "published_at": "18-10-2025 10:00", "fetched_at": "2025-10-22T09:45:01Z", "symbol": "BTC", "price_usd": "70000", "market_cap_usd": "1.35e12", "_corrupt_record": "18-10-2025 10:00"}
