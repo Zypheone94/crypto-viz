@@ -25,6 +25,51 @@ def parse_datetime(dt_str: str) -> datetime:
         myResponse = ApiResponse._create_response(level="error", msg=f"Invalid datetime: {dt_str}", response=[])
         raise HTTPException(status_code=400, detail=myResponse)
 
+
+@router.get("/trending")
+def get_trending(
+    from_: str = Query(..., alias="from"),
+    to: str = Query(...),
+    bucket: Literal["hour", "day"] = Query("hour"),
+    limit: int = Query(5, ge=1, le=100)
+):
+    dt_from = parse_datetime(from_)
+    dt_to = parse_datetime(to)
+    if dt_from > dt_to:
+        myResponse = ApiResponse._create_response(level="error", msg="'from' doit être <= 'to'", response=[])
+        raise HTTPException(status_code=400, detail=myResponse)
+
+    window_label = "1h" if bucket == "hour" else "1d"
+
+    if not os.path.exists(DB_FILE):
+        myResponse = ApiResponse._create_response(level="warning", msg=f"Database not found at {DB_FILE}", response=[])
+        return JSONResponse(content=myResponse, status_code=200)
+
+    query = """
+        SELECT
+            source,
+            value,
+            delta_pct
+        FROM metrics_trending
+        WHERE window_label = ?
+          AND as_of >= ?
+          AND as_of <= ?
+        ORDER BY delta_pct DESC NULLS LAST, value DESC
+        LIMIT ?
+    """
+    try:
+        with duckdb.connect(database=DB_FILE, read_only=True) as con:
+            rows = con.execute(query, [window_label, dt_from, dt_to, int(limit)]).fetchall()
+    except duckdb.CatalogException:
+        myResponse = ApiResponse._create_response(level="info", msg="No trending data yet", response=[])
+        return JSONResponse(content=myResponse, status_code=200)
+
+    result = [{"source": r[0], "value": r[1], "delta_pct": r[2]} for r in rows]
+    level = "info" if result else "warning"
+    msg = "Success" if result else "No data found"
+    myResponse = ApiResponse._create_response(level=level, msg=msg, response=result)
+    return JSONResponse(content=myResponse, status_code=200)
+
 ALLOWED_BUCKETS = {"hour", "day"}
 MAX_WINDOW_DAYS = 180
 
