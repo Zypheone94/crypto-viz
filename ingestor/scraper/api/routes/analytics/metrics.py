@@ -105,6 +105,25 @@ def get_timeseries(
 
     return JSONResponse(content=result, status_code=200)
 
+def read_latest_snapshot():
+    files = glob.glob(PARQUET_PATH, recursive=True)
+    if not files:
+        return []
+    parquet_list = ", ".join(f"'{f}'" for f in files)
+    query = f"""
+        SELECT *
+        FROM read_parquet([{parquet_list}])
+        ORDER BY ts DESC
+        LIMIT 1
+    """
+    with duckdb.connect(database=":memory:") as con:
+        con.execute(query)
+        rows = con.fetchall()
+    if rows:
+        columns = ["ts", "source", "symbol", "price_usd"]
+        return [dict(zip(columns, row)) for row in rows]
+    return []
+
 @router.get("/latest")
 def get_latest():
     snapshot = read_latest_snapshot()
