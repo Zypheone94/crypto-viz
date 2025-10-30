@@ -127,27 +127,39 @@ def parse_binance(url: str, data: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 # ===================== BOUCLE DE PARSING =====================
 
-for url in urls_to_parse:
-    domain = url.split("/")[2].replace("www.", "")
-    domain_key = ".".join(domain.split(".")[-2:])
-    parser_func = SITE_PARSERS.get(domain_key)
+def run_all() -> List[Dict[str, Any]]:
+    """Parse all configured URLs and return aggregated items."""
+    aggregated: List[Dict[str, Any]] = []
 
-    if parser_func:
-        print(f"Parsing {url} with {parser_func.__name__}")
-        try:
-            r = session.get(url)
+    for url in urls_to_parse:
+        domain = url.split("/")[2].replace("www.", "")
+        domain_key = ".".join(domain.split(".")[-2:])
+        parser_func = SITE_PARSERS.get(domain_key)
 
-            if domain_key in ["coinmarketcap.com", "binance.com"]:
-                # API CoinMarketCap renvoie du JSON
-                data = r.json()
-                results = parser_func(url, data)
-            else:
-                soup = BeautifulSoup(r.html.html, "lxml")
-                results = parser_func(url, soup)
+        if parser_func:
+            print(f"Parsing {url} with {parser_func.__name__}")
+            try:
+                r = session.get(url)
 
-            print(f"{len(results)} items parsed from {domain_key}")
-            print(results)
-        except Exception as e:
-            print(f"Erreur lors du parsing de {url}: {e}")
-    else:
-        print(f"Aucun parser trouvé pour {domain_key}")
+                if domain_key in ["coinmarketcap.com", "binance.com"]:
+                    data = r.json()
+                    results = parser_func(url, data)
+                else:
+                    soup = BeautifulSoup(r.html.html, "lxml")
+                    results = parser_func(url, soup)
+
+                print(f"{len(results)} items parsed from {domain_key}")
+                print(results)
+                aggregated.extend(results)
+            except Exception as e:
+                print(f"Erreur lors du parsing de {url}: {e}")
+        else:
+            print(f"Aucun parser trouvé pour {domain_key}")
+
+    return aggregated
+
+
+if __name__ == "__main__":
+    results = run_all()
+    print(f"Total items parsed: {len(results)}")
+    print(results)
