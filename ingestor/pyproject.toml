@@ -27,7 +27,11 @@ dependencies = [
     "pytest",
     "fastapi",
     "typer",
-    "pandas"
+    "pandas",
+    "httpx",
+    "beautifulsoup4",
+    "lxml",
+    "backoff"
 ]
 
 
