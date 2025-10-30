@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import health
-from api.routes.analytics import metrics
-from api.utils.middleware import Middleware
+from scraper.api.routes import health
+from scraper.api.routes.analytics import metrics
+from scraper.api.utils.middleware import Middleware
 import os
 from dotenv import load_dotenv
 

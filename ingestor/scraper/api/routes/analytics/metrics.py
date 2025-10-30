@@ -1,3 +1,4 @@
+from pathlib import Path
 from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import JSONResponse
 from typing import Literal
@@ -6,10 +7,16 @@ import duckdb
 import glob
 import os
 
-from ingestor.scraper.api.utils.json_api_res_template import JsonApiTemplate
+from scraper.api.utils.json_api_res_template import JsonApiTemplate
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
-DB_FILE = "/app/ingestor/scraper/data/duck/warehouse.duckdb"
+
+def _resolve_db_path() -> str:
+    base_dir = Path(__file__).resolve().parents[3] 
+    default_path = base_dir / "data" / "duck" / "warehouse.duckdb"
+    return str(default_path.resolve(strict=False))
+
+DB_FILE = _resolve_db_path()
 
 PARQUET_PATH = os.path.join(
     os.path.dirname(__file__), "../../data/clean/parquet/**/*.parquet"
@@ -65,8 +72,49 @@ def get_timeseries(
 
 @router.get("/latest")
 def get_latest():
-    snapshot = read_latest_snapshot()
-    return JSONResponse(content=snapshot, status_code=200)
+    database_error = ApiResponse._create_response(
+        level="warning",
+        msg=f"Database not found at {DB_FILE}",
+        response={"updated_at": None, "counts": {}},
+    )
+    no_data_found = ApiResponse._create_response(
+        level="info",
+        msg="No data found",
+        response={"updated_at": None, "counts": {}},
+    )
+
+    if not os.path.exists(DB_FILE):
+        raise HTTPException(status_code=404, detail=database_error)
+
+    with duckdb.connect(database=DB_FILE) as con:
+        rows = con.execute("SELECT source, window_label, updated_at, count FROM latest").fetchall()
+
+        if not rows:
+            try:
+                art_counts = con.execute("SELECT source, COUNT(*) FROM articles GROUP BY source").fetchall()
+                counts = {r[0]: r[1] for r in art_counts}
+                latest_ts = con.execute("SELECT MAX(fetched_at) FROM articles").fetchone()[0]
+                snapshot = {
+                    "updated_at": latest_ts.isoformat() if latest_ts is not None else None,
+                    "counts": counts,
+                }
+                resp = ApiResponse._create_response(level="info", msg="Success (computed from articles)", response=snapshot)
+                return JSONResponse(content=resp, status_code=200)
+            except Exception:
+                # If fallback fails, return consistent 404
+                raise HTTPException(status_code=404, detail=no_data_found)
+
+    # If we have rows in latest table, use them
+    counts = {src: cnt for (src, _w, _ts, cnt) in rows}
+    # Compute the latest timestamp among rows
+    updated_values = [ts for (_s, _w, ts, _c) in rows if ts is not None]
+    latest_ts = max(updated_values) if updated_values else None
+    snapshot = {
+        "updated_at": latest_ts.isoformat() if latest_ts is not None else None,
+        "counts": counts,
+    }
+    resp = ApiResponse._create_response(level="info", msg="Success", response=snapshot)
+    return JSONResponse(content=resp, status_code=200)
 
 
 @router.get("/top")
