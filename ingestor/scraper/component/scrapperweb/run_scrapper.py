@@ -14,6 +14,9 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).parent))
 
 from main import run_server, shutdown_event
+import subprocess
+import time
+import sys
 
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully"""
@@ -56,8 +59,29 @@ def main():
     print("Press Ctrl+C to stop.\n")
     
     try:
-        # Start the server
-        run_server()
+        # If a time-window/periodic refresh is configured, run the scraper in a subprocess
+        # for each window. This avoids reactor restart issues inside the same process.
+        interval = int(os.getenv('TIMEWINDOW_SECONDS') or os.getenv('FETCH_INTERVAL') or 0)
+        if interval and interval > 0:
+            print(f"Running in time-windowed mode: interval={interval}s")
+            # Keep launching a separate process that runs the crawler/main. Each run is a fresh process.
+            while not shutdown_event.is_set():
+                cmd = [sys.executable, "-m", "ingestor.scraper.component.scrapperweb.main"]
+                print(f"Launching scraper subprocess: {cmd}")
+                try:
+                    ret = subprocess.run(cmd)
+                    print(f"Scraper subprocess exited with code {ret.returncode}")
+                except Exception as e:
+                    print(f"Error launching scraper subprocess: {e}")
+
+                # Sleep until next window unless shutdown requested
+                for _ in range(int(interval)):
+                    if shutdown_event.is_set():
+                        break
+                    time.sleep(1)
+        else:
+            # Start the server in-process (legacy behavior)
+            run_server()
     except KeyboardInterrupt:
         print("\n👋 Shutting down scrapper...")
         shutdown_event.set()
