@@ -89,7 +89,7 @@ def main() -> None:
 
 
 
-FETCH_INTERVAL = int(os.getenv("FETCH_INTERVAL", "60")) 
+FETCH_INTERVAL = int(os.getenv("FETCH_INTERVAL", "60"))
 
 def main_loop():
     while True:
