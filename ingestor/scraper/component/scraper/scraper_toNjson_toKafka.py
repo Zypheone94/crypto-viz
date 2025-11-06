@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Iterable
 
-from scraper import run_all
+from .scraper import run_all
 
 
 def _ensure_id(item: Dict[str, Any]) -> str:
