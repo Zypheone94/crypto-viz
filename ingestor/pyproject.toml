@@ -32,6 +32,8 @@ dependencies = [
     "beautifulsoup4",
     "lxml",
     "backoff",
+    "requests_html",
+    "lxml_html_clean"
 ]
 
 
