@@ -2,10 +2,9 @@ import sqlite3
 from pathlib import Path
 import os
 
-# Assure-toi que le dossier 'data' existe
-Path("data").mkdir(exist_ok=True)
-
-con = sqlite3.connect("data/ingestor.db")
+data_dir = Path(__file__).parent / "data"
+data_dir.mkdir(exist_ok=True)
+con = sqlite3.connect(str(data_dir / "ingestor.db"))
 cur = con.cursor()
 
 cur.execute('''
@@ -46,5 +45,5 @@ CREATE TABLE IF NOT EXISTS article (
 
 con.commit()
 
-print("✅ Tables créées :", list(cur.execute("SELECT name FROM sqlite_master WHERE type='table';")))
+print("Tables created :", list(cur.execute("SELECT name FROM sqlite_master WHERE type='table';")))
 con.close()
