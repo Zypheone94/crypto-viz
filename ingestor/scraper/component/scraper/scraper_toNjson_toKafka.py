@@ -67,7 +67,11 @@ def main() -> None:
     print(f"[scraper_to_ndjson] project root: {project_root}")
     print(f"[scraper_to_ndjson] raw root: {raw_root}")
 
-    items = run_all()
+    try:
+        items = run_all()
+    except Exception as exc:
+        print(f"[scraper_to_ndjson] error during run_all: {exc}")
+        return
     print(f"[scraper_to_ndjson] collected {len(items)} item(s)")
 
     out_file = write_ndjson(raw_root, items)
