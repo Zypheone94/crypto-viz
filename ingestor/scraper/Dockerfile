@@ -12,3 +12,5 @@ RUN pip install --no-cache-dir -e .
 RUN pip install duckdb --only-binary=:all:
 
 COPY ingestor/scraper ./ingestor/scraper
+
+CMD ["python", "component/scraperdb/init_sqlite_db.py"]
