@@ -31,7 +31,8 @@ dependencies = [
     "httpx",
     "beautifulsoup4",
     "lxml",
-    "backoff"
+    "backoff",
+    "sqlite3"
 ]
 
 
