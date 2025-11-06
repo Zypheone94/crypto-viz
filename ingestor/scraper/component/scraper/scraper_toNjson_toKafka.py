@@ -95,7 +95,7 @@ def main_loop():
     while True:
         print("[scheduler] Starting scrape cycle...")
         try:
-            main()  #
+            main()
         except Exception as e:
             print(f"[scheduler] Error during scraping cycle: {e}")
         print(f"[scheduler] Sleeping for {FETCH_INTERVAL}s...\n")
