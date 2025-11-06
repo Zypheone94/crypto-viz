@@ -19,7 +19,7 @@ def _ensure_id(item: Dict[str, Any]) -> str:
         item.get("name") or "",
         item.get("fetched_at") or "",
     ])
-    return hashlib.sha1(base.encode("utf-8")).hexdigest()
+    return hashlib.sha256(base.encode("utf-8")).hexdigest()
 
 
 def _coerce_fetched_at(item: Dict[str, Any]) -> str:
