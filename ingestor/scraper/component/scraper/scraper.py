@@ -4,6 +4,7 @@ from typing import Dict, Any, List
 
 from bs4 import BeautifulSoup
 from requests_html import HTMLSession
+from ingestor.scraper.api.utils.robust_http import robust_request
 
 # Dictionnaire des parsers
 SITE_PARSERS = {}
@@ -139,13 +140,15 @@ def run_all() -> List[Dict[str, Any]]:
         if parser_func:
             print(f"Parsing {url} with {parser_func.__name__}")
             try:
-                r = session.get(url)
-
+                r = robust_request("GET", url)
                 if domain_key in ["coinmarketcap.com", "binance.com"]:
                     data = r.json()
                     results = parser_func(url, data)
                 else:
-                    soup = BeautifulSoup(r.html.html, "lxml")
+                    # Pour requests_html, on doit charger le HTML dans l'objet session
+                    html_obj = session.get(url)
+                    html_obj.html.html = r.text
+                    soup = BeautifulSoup(html_obj.html.html, "lxml")
                     results = parser_func(url, soup)
 
                 print(f"{len(results)} items parsed from {domain_key}")
