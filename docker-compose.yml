@@ -1,11 +1,11 @@
 services:
-  scraper:
+  api:
     build:
       context: .
       dockerfile: ingestor/scraper/Dockerfile
     volumes:
       - ./ingestor:/app/ingestor
-      - ./ingestor/scraper/data/duck:/app/ingestor/scraper/data/duck
+      - ./ingestor/scraper/component/scraperdb/data:/app/scraper/component/scraperdb/data
     working_dir: /app/ingestor/scraper/
     ports:
       - "${SCRAPER_PORT}:8080"
@@ -13,15 +13,13 @@ services:
     env_file:
       - .env
 
-  builder:
-    build:
-      context: .
-      dockerfile: ingestor/builder/Dockerfile
-    volumes:
-      - ./ingestor/builder:/app/ingestor/builder
-    command: python ingestor/builder/main.py
-    env_file:
-      - .env
+  scraper:
+      build:
+        context: .
+        dockerfile: ingestor/scraper/component/scraper/Dockerfile
+      volumes:
+        - ./ingestor:/app/ingestor
+      working_dir: /app/ingestor/scraper/component/scraper
 
   web:
     build:
@@ -35,23 +33,29 @@ services:
       - "${ANGULAR_PORT}:4200"
     command: npm run serve
 
-  broker:
-    image: apache/kafka:latest
-    container_name: broker
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:9092,EXTERNAL://localhost:9094
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@broker:9093
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_NUM_PARTITIONS: 3
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+  builder:
+    build:
+      context: .
+      dockerfile: ingestor/builder/Dockerfile
+    volumes:
+      - ./ingestor/builder:/app/ingestor/builder
+    command: python ingestor/builder/consumer.py
+    env_file:
+      - .env
+    depends_on:
+      - rabbitmq
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
     ports:
-      - "${KAFKA_PORT}:9094"
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: user    # Default user
+      RABBITMQ_DEFAULT_PASS: password # Default Password
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+volumes:
+  rabbitmq_data:

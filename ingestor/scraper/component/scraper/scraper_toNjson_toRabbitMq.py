@@ -1,4 +1,4 @@
-"""Collect scraper data, store to NDJSON partitions, then push to Kafka."""
+"""Collect scraper data, store to NDJSON partitions, then push to RabbitMq."""
 import json
 import os
 import sys
@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Iterable
 
-from .scraper import run_all
+from scraper import run_all
 
 
 def _ensure_id(item: Dict[str, Any]) -> str:
@@ -85,11 +85,11 @@ def main() -> None:
         res = subprocess.run([
             sys.executable,
             "-m",
-            "ingestor.builder.sendtokafka",
+            "ingestor.builder.sendtoRabbitMq",
         ], cwd=str(project_root), check=False)
-        print(f"[scraper_to_ndjson] sendtokafka exit code: {res.returncode}")
+        print(f"[scraper_to_ndjson] sendtorabbitmq exit code: {res.returncode}")
     except Exception as exc:
-        print(f"[scraper_to_ndjson] failed to run sendtokafka: {exc}")
+        print(f"[scraper_to_ndjson] failed to run sendtorabbitmq: {exc}")
 
 
 
