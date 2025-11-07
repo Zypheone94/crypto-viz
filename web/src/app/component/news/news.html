@@ -1,0 +1,46 @@
+<div class="news-container">
+  <div class="news-header">
+    <h1>
+      <mat-icon>newspaper</mat-icon>
+      Actualités Crypto
+    </h1>
+    <p>Restez informé des dernières nouvelles du monde de la cryptomonnaie</p>
+  </div>
+
+  <div class="loading-container" *ngIf="isLoading">
+    <mat-spinner></mat-spinner>
+    <p>Chargement des actualités...</p>
+  </div>
+
+  <div class="news-grid" *ngIf="!isLoading">
+    <mat-card class="news-card" *ngFor="let article of articles">
+      <mat-card-header>
+        <div class="section-badge" [style.background-color]="getSectionColor(article.section)">
+          <mat-icon>{{ getSectionIcon(article.section) }}</mat-icon>
+          <span>{{ article.section }}</span>
+        </div>
+        <div class="card-spacer"></div>
+        <div class="timestamp">
+          {{ formatDate(article.timestamp) }}
+        </div>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <h3 class="article-title">{{ article.title }}</h3>
+        <p class="article-content">{{ truncateContent(article.content) }}</p>
+      </mat-card-content>
+      
+      <mat-card-actions>
+        <a [href]="article.link" target="_blank" rel="noopener noreferrer" class="read-more-btn">
+          <mat-icon>open_in_new</mat-icon>
+          Lire l'article complet
+        </a>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+
+  <div class="no-articles" *ngIf="!isLoading && articles.length === 0">
+    <mat-icon>info</mat-icon>
+    <p>Aucun article disponible pour le moment.</p>
+  </div>
+</div>

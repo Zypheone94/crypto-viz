@@ -1,0 +1,80 @@
+<div class="top-losers">
+  <div *ngIf="isLoading" class="loading-container">
+    <mat-spinner></mat-spinner>
+    <p>Chargement des top losers…</p>
+  </div>
+
+  <div *ngIf="!isLoading" class="data-container">
+    <div class="header">
+      <h2>
+        <mat-icon>trending_down</mat-icon>
+        Top Crypto Losers (24h)
+      </h2>
+      <p class="subtitle">Cryptomonnaies avec les plus fortes baisses sur 24h</p>
+    </div>
+
+    <div class="losers-grid">
+      <div class="table-section">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Crypto</th>
+              <th>Prix</th>
+              <th>Variation 24h</th>
+              <th>Volume 24h</th>
+              <th>Market Cap</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let loser of losers; let i = index" class="loser-row">
+              <td>
+                <div class="crypto-info">
+                  <span class="rank">{{ i + 1 }}</span>
+                  <div class="crypto-details">
+                    <span class="symbol">{{ loser.symbol }}</span>
+                    <span class="name">{{ loser.name }}</span>
+                  </div>
+                </div>
+              </td>
+              <td class="price">${{ formatPrice(loser.price) }}</td>
+              <td class="change negative">
+                <div class="change-info">
+                  <span class="change-value">${{ formatPrice(loser.change24h) }}</span>
+                  <span class="change-percent">{{ loser.changePercent24h.toFixed(2) }}%</span>
+                </div>
+              </td>
+              <td class="volume">${{ formatNumber(loser.volume24h) }}</td>
+              <td class="market-cap">${{ formatNumber(loser.marketCap) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+
+    </div>
+
+    <div class="stats-cards">
+      <div class="stat-card">
+        <mat-icon>trending_down</mat-icon>
+        <div class="stat-info">
+          <span class="stat-label">Plus Grosse Perte</span>
+          <span class="stat-value">{{ losers[0]?.symbol }} ({{ losers[0]?.changePercent24h?.toFixed(2) }}%)</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <mat-icon>account_balance_wallet</mat-icon>
+        <div class="stat-info">
+          <span class="stat-label">Volume Total</span>
+          <span class="stat-value">${{ getTotalVolume() }}</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <mat-icon>trending_down</mat-icon>
+        <div class="stat-info">
+          <span class="stat-label">Perte Moyenne</span>
+          <span class="stat-value">{{ getAverageLoss() }}%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

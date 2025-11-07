@@ -3,6 +3,7 @@
     class="tab"
     [class.active]="view === 'timeseries'"
     (click)="select('timeseries')">
+    <mat-icon>timeline</mat-icon>
     Time Series
   </button>
 
@@ -10,7 +11,24 @@
     class="tab"
     [class.active]="view === 'trending'"
     (click)="select('trending')">
+    <mat-icon>trending_up</mat-icon>
     Trending Now
+  </button>
+
+  <button
+    class="tab"
+    [class.active]="view === 'topGainers'"
+    (click)="select('topGainers')">
+    <mat-icon>arrow_upward</mat-icon>
+    Top Gainers
+  </button>
+
+  <button
+    class="tab"
+    [class.active]="view === 'topLosers'"
+    (click)="select('topLosers')">
+    <mat-icon>arrow_downward</mat-icon>
+    Top Losers
   </button>
 </div>
 
@@ -24,4 +42,8 @@
     [limit]="5"
     [autoRefreshSec]="60">
   </app-trending-now>
+
+  <app-top-gainers *ngIf="view === 'topGainers'"></app-top-gainers>
+
+  <app-top-losers *ngIf="view === 'topLosers'"></app-top-losers>
 </div>

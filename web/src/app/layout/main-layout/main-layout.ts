@@ -6,18 +6,30 @@ import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { StoreService } from '../../services/store.service';
 import { MatExpansionModule } from '@angular/material/expansion';
-
-type PeriodKey = 'A' | 'B';
-
-interface Period {
-  key: PeriodKey;
-  label: string;
-}
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatInputModule } from '@angular/material/input';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatNativeDateModule } from '@angular/material/core';
+import { MatIconModule } from '@angular/material/icon';
+import { MatSelectModule } from '@angular/material/select';
+import { MatButtonModule } from '@angular/material/button';
 
 @Component({
   selector: 'app-main-layout',
   standalone: true,
-  imports: [MatExpansionModule, CommonModule, RouterModule, FormsModule],
+  imports: [
+    MatExpansionModule, 
+    CommonModule, 
+    RouterModule, 
+    FormsModule,
+    MatDatepickerModule,
+    MatInputModule,
+    MatFormFieldModule,
+    MatNativeDateModule,
+    MatIconModule,
+    MatSelectModule,
+    MatButtonModule
+  ],
   templateUrl: './main-layout.html',
   styleUrls: ['./main-layout.css'],
 })
@@ -25,34 +37,22 @@ export class MainLayoutComponent implements OnInit {
   selectedTab: string = 'home';
 
   navItems = [
-    { route: 'home', icon: '🏠', label: 'Accueil' },
-    { route: 'analytics', icon: '📊', label: 'Analytics' },
-    { route: 'health-check', icon: '🔍', label: 'Health Check' },
+    { route: 'home', icon: 'home', label: 'Accueil' },
+    { route: 'analytics', icon: 'analytics', label: 'Analytics' },
+    { route: 'health-check', icon: 'health_and_safety', label: 'Health Check' },
+    { route: 'news', icon: 'newspaper', label: 'News' },
   ];
 
-  periods: Period[] = [
-    { key: 'A', label: 'Période A' },
-    { key: 'B', label: 'Période B' },
+  // Simplified filter system with single date picker and time range
+  selectedDate: Date = new Date();
+  selectedTimeRange: string = '24h';
+  
+  timeRanges = [
+    { value: '1h', label: 'Dernière heure' },
+    { value: '24h', label: 'Dernier jour' },
+    { value: '7d', label: 'Dernière semaine' },
+    { value: '30d', label: 'Dernier mois' }
   ];
-
-  displayCustomFields: Record<PeriodKey, boolean> = {
-    A: false,
-    B: false,
-  };
-
-  filterValues: Record<PeriodKey, { from: string; to: string; bucket: string }> = {
-    A: { from: '', to: '', bucket: '' },
-    B: { from: '', to: '', bucket: '' },
-  };
-
-  customDateValues: Record<PeriodKey, { from: string; to: string }> = {
-    A: { from: '', to: '' },
-    B: { from: '', to: '' },
-  };
-
-  private lastCustomFilterKey = '';
-  displayCustomFieldsA: boolean = false;
-  displayCustomFieldsB: boolean = false;
 
   constructor(
     private router: Router,
@@ -89,82 +89,40 @@ export class MainLayoutComponent implements OnInit {
     this.selectedTab = route;
   }
 
-  substractTime(date: Date, value: number, unit: 'hour' | 'day'): string {
-    const msPerHour = 60 * 60 * 1000;
-    const msPerDay = 24 * msPerHour;
-
-    const ms = unit === 'hour' ? value * msPerHour : value * msPerDay;
-    return new Date(date.getTime() - ms).toISOString();
+  onDateChange(date: Date): void {
+    this.selectedDate = date;
+    this.updateAnalyticsFilters();
   }
 
-  updateFilter(periode: PeriodKey, value: any) {
-    const now = new Date();
+  onTimeRangeChange(range: string): void {
+    this.selectedTimeRange = range;
+    this.updateAnalyticsFilters();
+  }
 
-    this.displayCustomFields[periode] = false;
-
-    if (periode === 'A') {
-      this.displayCustomFieldsA = false;
-    } else if (periode === 'B') {
-      this.displayCustomFieldsB = false;
-    }
-    // Réinitialiser seulement les dates de la période concernée
-    this.customDateValues[periode] = { from: '', to: '' };
-
-    const periods: Record<string, { value: number; unit: 'hour' | 'day' }> = {
-      '1h': { value: 1, unit: 'hour' },
-      '1d': { value: 1, unit: 'day' },
-      '3d': { value: 3, unit: 'day' },
+  private updateAnalyticsFilters(): void {
+    const filterData = {
+      date: this.selectedDate,
+      timeRange: this.selectedTimeRange,
+      timestamp: new Date().getTime()
     };
-
-    const period = periods[value];
-    if (period) {
-      const filter = this.filterValues[periode];
-      filter.from = this.substractTime(now, period.value, period.unit);
-      filter.to = now.toISOString();
-      filter.bucket = period.unit;
-
-      this.sendData(periode, filter);
-    }
+    
+    this.storeService.setData('ALL', filterData);
   }
 
-  updateCustomFilter(periode: PeriodKey) {
-    if (this.customDateValues[periode].from && this.customDateValues[periode].to) {
-      const filterKey = `${this.customDateValues[periode].from}|${this.customDateValues[periode].to}`;
-
-      if (this.lastCustomFilterKey === filterKey) {
-        console.log('⏭️ Même filtre, skip');
-        return;
-      }
-
-      const filter = this.filterValues[periode];
-      filter.from = new Date(this.customDateValues[periode].from).toISOString();
-      filter.to = new Date(this.customDateValues[periode].to).toISOString();
-      filter.bucket = 'day'; // Default set to day because you choose two dates
-
-      this.lastCustomFilterKey = filterKey;
-      this.sendData(periode, filter);
-    }
-  }
-
-  resetFilters() {
-    this.filterValues = {
-      A: { from: '', to: '', bucket: '' },
-      B: { from: '', to: '', bucket: '' },
-    };
-    this.sendData('ALL', null);
-  }
-
-  handleDisplayCustomFields(period: PeriodKey) {
-    this.displayCustomFields[period] = !this.displayCustomFields[period];
+  resetFilters(): void {
+    this.selectedDate = new Date();
+    this.selectedTimeRange = '24h';
+    this.updateAnalyticsFilters();
   }
 
   getPageTitle(): string {
     const titles: { [key: string]: string } = {
       home: 'Accueil',
-      analytics: 'Analytics',
+      analytics: 'Analytics', 
       'health-check': 'Health Check',
+      news: 'News'
     };
-    return titles[this.selectedTab] || 'Mon App';
+    return titles[this.selectedTab] || 'CryptoViz';
   }
 
   getPageDescription(): string {
@@ -172,11 +130,8 @@ export class MainLayoutComponent implements OnInit {
       home: "Bienvenue sur la page d'accueil",
       analytics: 'Analyses détaillées et statistiques',
       'health-check': 'État du système et performances',
+      news: 'Actualités crypto et tendances du marché'
     };
     return descriptions[this.selectedTab] || '';
-  }
-
-  sendData(periode: 'A' | 'B' | 'ALL', data: any) {
-    this.storeService.setData(periode, data);
   }
 }

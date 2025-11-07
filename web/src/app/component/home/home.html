@@ -1,1 +1,86 @@
-<p>home works!</p>
+<div class="home-container">
+  <!-- Hero Section -->
+  <div class="hero-section">
+    <div class="hero-content">
+      <h1 class="hero-title">
+        <mat-icon class="hero-icon">currency_bitcoin</mat-icon>
+        CryptoViz
+      </h1>
+      <p class="hero-description">
+        <strong>CryptoViz</strong> est une plateforme d'analyse et de visualisation en temps réel des actualités crypto.
+        Notre système collecte, analyse et présente les données du marché des cryptomonnaies à travers une pipeline 
+        complète de bout en bout : scraping de flux RSS, traitement des données, API analytique et interface 
+        de visualisation dynamique.
+      </p>
+      <div class="hero-features">
+        <div class="feature-tag">
+          <mat-icon>auto_graph</mat-icon>
+          Analyse Temps Réel
+        </div>
+        <div class="feature-tag">
+          <mat-icon>insights</mat-icon>
+          Tendances Marché
+        </div>
+        <div class="feature-tag">
+          <mat-icon>newspaper</mat-icon>
+          Actualités Crypto
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard Stats -->
+  <div class="stats-section">
+    <h2 class="section-title">
+      <mat-icon>dashboard</mat-icon>
+      Tableau de Bord
+    </h2>
+    
+    <div class="stats-grid">
+      <mat-card *ngFor="let stat of dashboardStats" class="stat-card" [style.border-left-color]="stat.color">
+        <mat-card-content>
+          <div class="stat-header">
+            <div class="stat-icon" [style.background-color]="stat.color + '20'" [style.color]="stat.color">
+              <mat-icon>{{ stat.icon }}</mat-icon>
+            </div>
+            <div class="stat-trend" *ngIf="stat.trend">{{ stat.trend }}</div>
+          </div>
+          
+          <div class="stat-main">
+            <h3 class="stat-value">{{ stat.value }}</h3>
+            <h4 class="stat-title">{{ stat.title }}</h4>
+            <p class="stat-description">{{ stat.description }}</p>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="actions-section">
+    <h2 class="section-title">
+      <mat-icon>rocket_launch</mat-icon>
+      Accès Rapide
+    </h2>
+    
+    <div class="actions-grid">
+      <div class="action-card" routerLink="/analytics">
+        <mat-icon>analytics</mat-icon>
+        <h3>Analyses</h3>
+        <p>Explorez les métriques détaillées et les graphiques de performance</p>
+      </div>
+      
+      <div class="action-card" routerLink="/news">
+        <mat-icon>newspaper</mat-icon>
+        <h3>Actualités</h3>
+        <p>Consultez les dernières nouvelles du monde crypto</p>
+      </div>
+      
+      <div class="action-card" routerLink="/health-check">
+        <mat-icon>health_and_safety</mat-icon>
+        <h3>Monitoring</h3>
+        <p>Vérifiez l'état des systèmes et services</p>
+      </div>
+    </div>
+  </div>
+</div>
