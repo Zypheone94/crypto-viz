@@ -43,6 +43,26 @@ CREATE TABLE IF NOT EXISTS article (
 );
 ''')
 
+cur.execute('''
+    CREATE OR REPLACE VIEW ml_features AS
+    SELECT
+      d.symbol,
+      d.date_start,
+      d.date_end,
+      d.delta_pct AS target_delta_pct, 
+      CASE WHEN d.delta_pct > 0 THEN 1 ELSE 0 END AS target_up, 
+      COUNT(a.id)                     AS nb_articles,x
+      AVG(a.price)                    AS avg_price,
+      AVG(a.market_cap)               AS avg_market_cap,
+      AVG(a.coin_circulating)         AS avg_circulating
+    FROM delta d
+    LEFT JOIN Article a
+      ON a.symbol = d.symbol
+     AND a.date >= d.date_start
+     AND a.date <  d.date_end
+    GROUP BY 1,2,3,4,5;
+''')
+
 con.commit()
 
 print("Tables created :", list(cur.execute("SELECT name FROM sqlite_master WHERE type='table';")))
