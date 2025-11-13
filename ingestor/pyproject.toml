@@ -22,7 +22,6 @@ dependencies = [
     "webdriver-manager",
     "fake-useragent",
     "pydantic",
-    "kafka-python",
     "feedparser",
     "pytest",
     "fastapi",
@@ -33,7 +32,10 @@ dependencies = [
     "lxml",
     "backoff",
     "requests_html",
-    "lxml_html_clean"
+    "lxml_html_clean",
+    "loguru",
+    "polars",
+    "pika"
 ]
 
 

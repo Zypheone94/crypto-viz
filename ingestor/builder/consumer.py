@@ -1,9 +1,19 @@
-import os, time, json, hashlib, pathlib, io, codecs, re
+import os
+import time
+import json
+import hashlib
+import pathlib
+import io
+import codecs
+import re
 from typing import Iterable, Dict, List
-from loguru import logger
+
+import pika
 import polars as pl
+from loguru import logger
 from dotenv import load_dotenv
 
+# -------------------- Helpers --------------------
 def _clean_text(s: str | None) -> str | None:
     if s is None:
         return None
@@ -14,26 +24,7 @@ def _clean_text(s: str | None) -> str | None:
 def _id(article: Dict) -> str:
     return hashlib.sha1(((article.get("url") or "") + (article.get("title") or "")).encode("utf-8")).hexdigest()
 
-HERE = pathlib.Path(__file__).resolve().parent
-load_dotenv(HERE.parent / ".env")
-
-OUT_DIR = pathlib.Path(os.getenv("OUT_DIR", "../data/clean/parquet"))
-RAW_DIR = pathlib.Path(os.getenv("RAW_DIR", "../data/raw"))
-REJECT_DIR = OUT_DIR.parent / "_corrupt"
-
-INGEST_SOURCE = os.getenv("INGEST_SOURCE", "kafka").lower()
-KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "localhost:9094")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "crypto-viz")
-BATCH_MAX_MSG = int(os.getenv("BATCH_MAX_MSG", "200"))
-BATCH_MAX_SEC = int(os.getenv("BATCH_MAX_SEC", "5"))
-
-SLEEP_SEC = int(os.getenv("BUILDER_POLL_INTERVAL", "5"))
-
-# set de déduplication (en mémoire)
-SEEN_IDS: set[str] = set()
-
 def normalize(a: Dict) -> Dict:
-
     return {
         "id": a.get("id") or _id(a),
         "title": a.get("title"),
@@ -41,25 +32,47 @@ def normalize(a: Dict) -> Dict:
         "source": a.get("source"),
         "published_at": a.get("published_at"),
         "fetched_at": a.get("fetched_at"),
-        # nouveaux champs
         "symbol": a.get("symbol"),
         "price_usd": a.get("price_usd"),
         "market_cap_usd": a.get("market_cap_usd"),
     }
 
-# ---------- batch -> parquet ----------
+# -------------------- Config --------------------
+HERE = pathlib.Path(__file__).resolve().parent
+load_dotenv(HERE.parent / ".env")
+
+OUT_DIR = pathlib.Path(os.getenv("OUT_DIR", "../data/clean/parquet"))
+RAW_DIR = pathlib.Path(os.getenv("RAW_DIR", "../data/raw"))
+REJECT_DIR = OUT_DIR.parent / "_corrupt"
+
+INGEST_SOURCE = os.getenv("INGEST_SOURCE", "rabbitmq").lower()
+
+# RabbitMQ
+RABBIT_HOST = os.getenv("RABBIT_HOST", "rabbitmq")
+RABBIT_PORT = int(os.getenv("RABBIT_PORT", 5672))
+RABBIT_USER = os.getenv("RABBIT_USER", "user")
+RABBIT_PASS = os.getenv("RABBIT_PASS", "password")
+RABBIT_QUEUE = os.getenv("RABBIT_TOPIC", "crypto-viz")
+
+# Batch
+BATCH_MAX_MSG = int(os.getenv("BATCH_MAX_MSG", "200"))
+BATCH_MAX_SEC = int(os.getenv("BATCH_MAX_SEC", "5"))
+SLEEP_SEC = int(os.getenv("BUILDER_POLL_INTERVAL", "5"))
+
+# -------------------- Dedup --------------------
+SEEN_IDS: set[str] = set()
+
+# -------------------- Batch flush --------------------
 def flush_batch(batch: List[Dict]) -> int:
     if not batch:
         return 0
 
-    # dédup "dernière version" par id à l’intérieur du batch
     dedup: dict[str, dict] = {}
     for r in batch:
         rid = r.get("id") or _id(r)
         r["id"] = rid
         dedup[rid] = r
 
-    # ignorer ce qu’on a déjà écrit dans cette session
     new_rows = [r for r in dedup.values() if r["id"] not in SEEN_IDS]
     if not new_rows:
         return 0
@@ -67,7 +80,6 @@ def flush_batch(batch: List[Dict]) -> int:
 
     df = pl.DataFrame(new_rows)
 
-    # parse published_at -> ts(UTC)
     df = df.with_columns([
         pl.col("published_at")
           .cast(pl.Utf8)
@@ -77,7 +89,6 @@ def flush_batch(batch: List[Dict]) -> int:
           .alias("ts")
     ])
 
-    # split invalid (ts null) -> rejet NDJSON (pas de crash)
     invalid = (
         df.filter(pl.col("ts").is_null())
           .with_columns(pl.col("published_at").alias("_corrupt_record"))
@@ -89,17 +100,14 @@ def flush_batch(batch: List[Dict]) -> int:
 
     valid = df.filter(pl.col("ts").is_not_null())
 
-    # clean textes + cast numériques + dérive date
     valid = (
         valid.with_columns([
             pl.col("title").map_elements(_clean_text, return_dtype=pl.Utf8),
             pl.col("url").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
             pl.col("source").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
             pl.col("symbol").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
-
             pl.col("price_usd").cast(pl.Float64),
             pl.col("market_cap_usd").cast(pl.Float64),
-
             pl.col("ts").dt.date().alias("date"),
         ])
         .select([
@@ -108,7 +116,6 @@ def flush_batch(batch: List[Dict]) -> int:
         ])
     )
 
-    # rejets si besoin
     if invalid.height > 0:
         REJECT_DIR.mkdir(parents=True, exist_ok=True)
         rej_path = REJECT_DIR / f"reject-{int(time.time())}.ndjson"
@@ -120,7 +127,6 @@ def flush_batch(batch: List[Dict]) -> int:
             "count": invalid.height, "reject_file": str(rej_path)
         }))
 
-    # write parquet par partition de date
     written = 0
     for key, g in valid.group_by("date"):
         date_value = key[0] if isinstance(key, tuple) else key
@@ -137,20 +143,7 @@ def flush_batch(batch: List[Dict]) -> int:
 
     return written
 
-def kafka_source() -> Iterable[Dict]:
-    from kafka import KafkaConsumer
-    c = KafkaConsumer(
-        KAFKA_TOPIC,
-        bootstrap_servers=KAFKA_BOOTSTRAP,
-        group_id=os.getenv("KAFKA_GROUP_ID", "builder-group"),
-        security_protocol=os.getenv("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT"),
-        enable_auto_commit=True,
-        auto_offset_reset="latest",
-        value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-    )
-    for m in c:
-        yield normalize(m.value)
-
+# -------------------- Sources --------------------
 def filesystem_source() -> Iterable[Dict]:
     for p in sorted(RAW_DIR.rglob("*.ndjson")):
         raw = p.read_bytes()
@@ -163,22 +156,58 @@ def filesystem_source() -> Iterable[Dict]:
                 continue
             yield normalize(json.loads(line))
 
+def rabbitmq_source(queue: str = RABBIT_QUEUE) -> Iterable[Dict]:
+    credentials = pika.PlainCredentials(RABBIT_USER, RABBIT_PASS)
+    parameters = pika.ConnectionParameters(host=RABBIT_HOST, port=RABBIT_PORT, credentials=credentials)
+
+    max_attempts = 10
+    for attempt in range(max_attempts):
+        try:
+            connection = pika.BlockingConnection(parameters)
+            channel = connection.channel()
+            channel.queue_declare(queue=queue, durable=True)
+            logger.info(f"[builder] Connected to RabbitMQ at {RABBIT_HOST}:{RABBIT_PORT}")
+            break
+        except pika.exceptions.AMQPConnectionError:
+            logger.warning(f"[builder] RabbitMQ not ready, retry {attempt+1}/{max_attempts}...")
+            time.sleep(2)
+    else:
+        raise Exception(f"[builder] Cannot connect to RabbitMQ after {max_attempts} attempts")
+
+    try:
+        for method_frame, properties, body in channel.consume(queue=queue, inactivity_timeout=1):
+            if body is None:
+                continue
+            try:
+                data = json.loads(body.decode("utf-8"))
+                print("data", data)
+                yield normalize(data)
+                channel.basic_ack(method_frame.delivery_tag)
+            except Exception as e:
+                logger.error(f"[builder] skip corrupt message: {e}")
+    finally:
+        channel.cancel()
+        connection.close()
+
 def choose_source() -> Iterable[Dict]:
-    if INGEST_SOURCE == "kafka":
-        return kafka_source()
+    if INGEST_SOURCE == "rabbitmq":
+        return rabbitmq_source()
     if INGEST_SOURCE == "filesystem":
         return filesystem_source()
-    raise ValueError(f"INGEST_SOURCE must be 'kafka' or 'filesystem', got '{INGEST_SOURCE}'")
+    raise ValueError(f"INGEST_SOURCE must be 'rabbitmq' or 'filesystem', got '{INGEST_SOURCE}'")
 
-# ---------- main loop ----------
+# -------------------- Main loop --------------------
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    logger.remove()
     logger.add(lambda m: print(m, end=""))
-    logger.info(json.dumps({"service":"builder","msg":"consumer_start","mode":INGEST_SOURCE,
-                            "kafka_bootstrap":KAFKA_BOOTSTRAP if INGEST_SOURCE=='kafka' else None,
-                            "topic":KAFKA_TOPIC if INGEST_SOURCE=='kafka' else None,
-                            "raw_dir": str(RAW_DIR.resolve()) if INGEST_SOURCE=='filesystem' else None}))
+    logger.info(json.dumps({
+        "service":"builder",
+        "msg":"consumer_start",
+        "mode":INGEST_SOURCE,
+        "rabbit_host": RABBIT_HOST if INGEST_SOURCE=='rabbitmq' else None,
+        "queue": RABBIT_QUEUE if INGEST_SOURCE=='rabbitmq' else None,
+        "raw_dir": str(RAW_DIR.resolve()) if INGEST_SOURCE=='filesystem' else None
+    }))
 
     src = choose_source()
     batch, t0 = [], time.time()
@@ -195,8 +224,8 @@ def main():
                         {"service": "builder", "mode": INGEST_SOURCE, "msg": "flush_failed", "error": str(e)}))
                     n = 0
                 logger.info(json.dumps(
-                    {"service": "builder", "mode": INGEST_SOURCE, "msg": "batch_flushed", "batch_size": len(batch),
-                     "rows_written": n}))
+                    {"service": "builder", "mode": INGEST_SOURCE, "msg": "batch_flushed",
+                     "batch_size": len(batch), "rows_written": n}))
                 batch.clear()
                 t0 = now
     except KeyboardInterrupt:
@@ -205,8 +234,8 @@ def main():
         if batch:
             n = flush_batch(batch)
             logger.info(json.dumps(
-                {"service": "builder", "mode": INGEST_SOURCE, "msg": "final_flush", "batch_size": len(batch),
-                 "rows_written": n}))
+                {"service": "builder", "mode": INGEST_SOURCE, "msg": "final_flush",
+                 "batch_size": len(batch), "rows_written": n}))
 
 if __name__ == "__main__":
     main()
