@@ -21,6 +21,14 @@ services:
         - ./ingestor:/app/ingestor
       working_dir: /app/ingestor/scraper/component/scraper
 
+  feeder:
+    build:
+      context: .
+      dockerfile: ingestor/scraper/component/scraperdb/Dockerfile
+    volumes:
+      - ./ingestor:/app/ingestor
+    working_dir: /app/ingestor/scraper
+
   web:
     build:
       context: web
