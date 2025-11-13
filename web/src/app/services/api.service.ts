@@ -18,6 +18,10 @@ export class ApiService {
     return this.http.get(`${this.baseUrl}/api/health/check`);
   }
 
+  getNews(): Observable<any> {
+    return this.http.get(`${this.baseUrl}/api/news`);
+  }
+
   getTimeseries(params: TimeSeriesParams | null): Observable<TimeSeriesResponse[]> {
     const httpParams = new HttpParams()
       .set('from', params?.from || '')

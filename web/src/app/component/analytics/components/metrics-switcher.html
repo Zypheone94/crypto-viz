@@ -30,6 +30,23 @@
     <mat-icon>arrow_downward</mat-icon>
     Top Losers
   </button>
+
+  <button
+   class="tab"
+   [class.active]="view === 'ecartTypeGlissant'"
+   (click)="select('ecartTypeGlissant')">
+   <mat-icon>trending_down</mat-icon>
+   Écart-type glissant
+  </button>
+
+  <button
+   class="tab"
+   [class.active]="view === 'rsi'"
+   (click)="select('rsi')">
+   <mat-icon>show_chart</mat-icon>
+   RSI
+  </button>
+
 </div>
 
 <div class="panel">
@@ -46,4 +63,8 @@
   <app-top-gainers *ngIf="view === 'topGainers'"></app-top-gainers>
 
   <app-top-losers *ngIf="view === 'topLosers'"></app-top-losers>
+
+  <app-ecart-type-glissant *ngIf="view === 'ecartTypeGlissant'"></app-ecart-type-glissant>
+
+  <app-rsi *ngIf="view === 'rsi'"></app-rsi>
 </div>

@@ -5,6 +5,7 @@ import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration, ChartOptions } from 'chart.js';
 
 import { ApiService } from '../../../services/api.service';
+import { StoreService } from '../../../services/store.service';
 import { ComponentState } from '../../../shared/enums/component-state.enum';
 import { TrendingItem } from '../../../shared/interface/trending-interface';
 import { Subscription, timer } from 'rxjs';
@@ -27,6 +28,7 @@ export class TrendingNowComponent implements OnInit, OnDestroy {
 
   data: TrendingItem[] = [];
   private sub?: Subscription;
+  private dateRangeSubscription: Subscription = new Subscription();
 
   public barChartData: ChartConfiguration<'bar'>['data'] = {
     labels: [],
@@ -64,10 +66,24 @@ export class TrendingNowComponent implements OnInit, OnDestroy {
     },
   };
 
-  constructor(private api: ApiService) {}
+  constructor(
+    private api: ApiService,
+    private storeService: StoreService
+  ) {}
 
   ngOnInit(): void {
+    // Subscribe to date range changes
+    this.dateRangeSubscription = this.storeService.dateRange$.subscribe((dateRange) => {
+      if (dateRange.startDate && dateRange.endDate) {
+        // Update window and baseline based on date range
+        this.updateParametersFromDateRange(dateRange.startDate, dateRange.endDate);
+        this.fetch();
+      }
+    });
+
+    // Initial fetch
     this.fetch();
+    
     if (this.autoRefreshSec && this.autoRefreshSec > 0) {
       this.sub = timer(this.autoRefreshSec * 1000, this.autoRefreshSec * 1000).subscribe(() => this.fetch());
     }
@@ -75,6 +91,23 @@ export class TrendingNowComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.sub?.unsubscribe();
+    this.dateRangeSubscription.unsubscribe();
+  }
+
+  private updateParametersFromDateRange(startDate: Date, endDate: Date): void {
+    const diffMs = endDate.getTime() - startDate.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    
+    if (diffHours <= 24) {
+      this.window = '1h';
+      this.baseline = '6h';
+    } else if (diffHours <= 168) { // 7 days
+      this.window = '6h';
+      this.baseline = '24h';
+    } else {
+      this.window = '1d';
+      this.baseline = '7d';
+    }
   }
 
   private fetch(): void {

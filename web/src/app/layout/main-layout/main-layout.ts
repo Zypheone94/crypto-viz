@@ -1,10 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { StoreService } from '../../services/store.service';
+import { StoreService, NewsStatistics, NewsFilters } from '../../services/store.service';
+import { Subscription } from 'rxjs';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatInputModule } from '@angular/material/input';
@@ -13,6 +14,7 @@ import { MatNativeDateModule } from '@angular/material/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 
 @Component({
   selector: 'app-main-layout',
@@ -28,13 +30,15 @@ import { MatButtonModule } from '@angular/material/button';
     MatNativeDateModule,
     MatIconModule,
     MatSelectModule,
-    MatButtonModule
+    MatButtonModule,
+    MatSlideToggleModule
   ],
   templateUrl: './main-layout.html',
   styleUrls: ['./main-layout.css'],
 })
-export class MainLayoutComponent implements OnInit {
+export class MainLayoutComponent implements OnInit, OnDestroy {
   selectedTab: string = 'home';
+  private statisticsSubscription: Subscription = new Subscription();
 
   navItems = [
     { route: 'home', icon: 'home', label: 'Accueil' },
@@ -43,16 +47,22 @@ export class MainLayoutComponent implements OnInit {
     { route: 'news', icon: 'newspaper', label: 'News' },
   ];
 
-  // Simplified filter system with single date picker and time range
-  selectedDate: Date = new Date();
-  selectedTimeRange: string = '24h';
-  
-  timeRanges = [
-    { value: '1h', label: 'Dernière heure' },
-    { value: '24h', label: 'Dernier jour' },
-    { value: '7d', label: 'Dernière semaine' },
-    { value: '30d', label: 'Dernier mois' }
-  ];
+  // Date range filter system
+  startDate: Date = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 days ago
+  endDate: Date = new Date(); // today
+  selectedPreset: string = '7d';
+
+  // News filters
+  newsFilters: NewsFilters = {
+    section: 'all',
+    dateRange: 'all',
+    searchTerm: ''
+  };
+
+  // News statistics
+  totalNewsCount = 0;
+  todayNewsCount = 0;
+  lastUpdateTime = '--:--';
 
   constructor(
     private router: Router,
@@ -68,6 +78,17 @@ export class MainLayoutComponent implements OnInit {
       });
 
     this.updateSelectedTab(this.router.url);
+
+    // Subscribe to news statistics
+    this.statisticsSubscription = this.storeService.newsStatistics$.subscribe((stats) => {
+      this.totalNewsCount = stats.totalCount;
+      this.todayNewsCount = stats.todayCount;
+      this.lastUpdateTime = stats.lastUpdateTime;
+    });
+  }
+
+  ngOnDestroy() {
+    this.statisticsSubscription.unsubscribe();
   }
 
   private updateSelectedTab(url: string) {
@@ -89,29 +110,65 @@ export class MainLayoutComponent implements OnInit {
     this.selectedTab = route;
   }
 
-  onDateChange(date: Date): void {
-    this.selectedDate = date;
+  onStartDateChange(date: Date): void {
+    this.startDate = date;
+    this.selectedPreset = 'custom'; // Reset preset when manual date is selected
     this.updateAnalyticsFilters();
   }
 
-  onTimeRangeChange(range: string): void {
-    this.selectedTimeRange = range;
+  onEndDateChange(date: Date): void {
+    this.endDate = date;
+    this.selectedPreset = 'custom'; // Reset preset when manual date is selected
+    this.updateAnalyticsFilters();
+  }
+
+
+
+  setQuickRange(preset: string): void {
+    this.selectedPreset = preset;
+    const now = new Date();
+    
+    switch (preset) {
+      case '24h':
+        this.startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        this.endDate = new Date(now);
+        break;
+      case '7d':
+        this.startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        this.endDate = new Date(now);
+        break;
+      case '30d':
+        this.startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        this.endDate = new Date(now);
+        break;
+      case '90d':
+        this.startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        this.endDate = new Date(now);
+        break;
+      default:
+        break;
+    }
+    
     this.updateAnalyticsFilters();
   }
 
   private updateAnalyticsFilters(): void {
     const filterData = {
-      date: this.selectedDate,
-      timeRange: this.selectedTimeRange,
+      startDate: this.startDate,
+      endDate: this.endDate,
+      preset: this.selectedPreset,
       timestamp: new Date().getTime()
     };
     
+    // Update date range in store service
+    this.storeService.setDateRange(this.startDate, this.endDate);
     this.storeService.setData('ALL', filterData);
   }
 
   resetFilters(): void {
-    this.selectedDate = new Date();
-    this.selectedTimeRange = '24h';
+    this.startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    this.endDate = new Date();
+    this.selectedPreset = '7d';
     this.updateAnalyticsFilters();
   }
 
@@ -133,5 +190,26 @@ export class MainLayoutComponent implements OnInit {
       news: 'Actualités crypto et tendances du marché'
     };
     return descriptions[this.selectedTab] || '';
+  }
+
+  // News filter methods
+  onNewsFilterChange() {
+    console.log('News filters changed:', this.newsFilters);
+    this.storeService.setNewsFilters(this.newsFilters);
+  }
+
+  resetNewsFilters() {
+    this.newsFilters = {
+      section: 'all',
+      dateRange: 'all',
+      searchTerm: ''
+    };
+    this.storeService.setNewsFilters(this.newsFilters);
+  }
+
+  refreshNews() {
+    console.log('Refreshing news...');
+    // This would trigger a refresh of the news data
+    // You could emit an event that the news component listens to
   }
 }

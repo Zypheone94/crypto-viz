@@ -1,7 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
+import { StoreService } from '../../../services/store.service';
+import { Subscription } from 'rxjs';
 
 interface CryptoLoser {
   symbol: string;
@@ -21,14 +23,46 @@ interface CryptoLoser {
   templateUrl: './top-losers.html',
   styleUrls: ['./time-series.css'],
 })
-export class TopLosersComponent implements OnInit {
+export class TopLosersComponent implements OnInit, OnDestroy {
   losers: CryptoLoser[] = [];
   isLoading = false;
+  private dateRangeSubscription: Subscription = new Subscription();
 
-
+  constructor(private storeService: StoreService) {}
 
   ngOnInit(): void {
+    // Subscribe to date range changes
+    this.dateRangeSubscription = this.storeService.dateRange$.subscribe((dateRange) => {
+      if (dateRange.startDate && dateRange.endDate) {
+        this.loadDataForDateRange(dateRange.startDate, dateRange.endDate);
+      } else {
+        this.loadMockData();
+      }
+    });
+    
     this.loadMockData();
+  }
+
+  ngOnDestroy(): void {
+    this.dateRangeSubscription.unsubscribe();
+  }
+
+  private loadDataForDateRange(startDate: Date, endDate: Date): void {
+    this.isLoading = true;
+    
+    // Simulate different data based on date range
+    const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    setTimeout(() => {
+      if (daysDiff <= 1) {
+        this.loadShortTermLosers();
+      } else if (daysDiff <= 7) {
+        this.loadWeeklyLosers();
+      } else {
+        this.loadLongTermLosers();
+      }
+      this.isLoading = false;
+    }, 500);
   }
 
   private loadMockData(): void {
@@ -115,7 +149,104 @@ export class TopLosersComponent implements OnInit {
     }, 800);
   }
 
+  private loadShortTermLosers(): void {
+    // Data for 24h or less - more volatile losers
+    this.losers = [
+      {
+        symbol: 'LUNA',
+        name: 'Terra Luna Classic',
+        price: 0.00018,
+        change24h: -0.000085,
+        changePercent24h: -32.1,
+        volume24h: 850000000,
+        marketCap: 1200000000
+      },
+      {
+        symbol: 'FTT',
+        name: 'FTX Token',
+        price: 2.8,
+        change24h: -1.2,
+        changePercent24h: -30.0,
+        volume24h: 420000000,
+        marketCap: 920000000
+      },
+      {
+        symbol: 'SAFEMOON',
+        name: 'SafeMoon',
+        price: 0.00035,
+        change24h: -0.00015,
+        changePercent24h: -30.0,
+        volume24h: 180000000,
+        marketCap: 210000000
+      }
+    ];
+  }
 
+  private loadWeeklyLosers(): void {
+    // Data for 7 days - moderate losers
+    this.losers = [
+      {
+        symbol: 'XRP',
+        name: 'Ripple',
+        price: 0.52,
+        change24h: -0.045,
+        changePercent24h: -8.0,
+        volume24h: 1200000000,
+        marketCap: 29000000000
+      },
+      {
+        symbol: 'ADA',
+        name: 'Cardano',
+        price: 0.61,
+        change24h: -0.041,
+        changePercent24h: -6.3,
+        volume24h: 750000000,
+        marketCap: 21500000000
+      },
+      {
+        symbol: 'DOGE',
+        name: 'Dogecoin',
+        price: 0.078,
+        change24h: -0.005,
+        changePercent24h: -6.0,
+        volume24h: 1100000000,
+        marketCap: 11200000000
+      }
+    ];
+  }
+
+  private loadLongTermLosers(): void {
+    // Data for 30+ days - stable decliners
+    this.losers = [
+      {
+        symbol: 'ETH',
+        name: 'Ethereum',
+        price: 3650,
+        change24h: -45,
+        changePercent24h: -1.2,
+        volume24h: 25000000000,
+        marketCap: 438000000000
+      },
+      {
+        symbol: 'BNB',
+        name: 'BNB',
+        price: 620,
+        change24h: -8.5,
+        changePercent24h: -1.4,
+        volume24h: 1900000000,
+        marketCap: 90000000000
+      },
+      {
+        symbol: 'SOL',
+        name: 'Solana',
+        price: 235,
+        change24h: -4.2,
+        changePercent24h: -1.8,
+        volume24h: 7800000000,
+        marketCap: 110000000000
+      }
+    ];
+  }
 
   formatNumber(value: number): string {
     if (value >= 1e12) {

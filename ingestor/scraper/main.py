@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import health
+from api.routes import health, newsdata
 from api.routes.analytics import metrics
 from api.utils.middleware import Middleware
 import os
@@ -28,6 +28,7 @@ app.add_middleware(Middleware)
 
 app.include_router(health.router)
 app.include_router(metrics.router)
+app.include_router(newsdata.router)
 """
 REMINDER : You must start your api path by : 
 - API (if you do something with the api, health, etc...)

@@ -35,6 +35,8 @@
     "@angular/router": "^20.2.0",
     "@angular/ssr": "^20.2.1",
     "chart.js": "^4.5.0",
+    "chartjs-adapter-date-fns": "^3.0.0",
+    "date-fns": "^3.6.0",
     "express": "^5.1.0",
     "ng2-charts": "^8.0.0",
     "prettier": "^3.6.2",

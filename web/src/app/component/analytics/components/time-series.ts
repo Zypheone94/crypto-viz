@@ -10,6 +10,7 @@ import { TimeSeriesParams } from '../../../shared/interface/timeSeries-interface
 
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration, ChartOptions, ChartType } from 'chart.js';
+import 'chartjs-adapter-date-fns';
 
 @Component({
   selector: 'app-time-series',
@@ -25,6 +26,7 @@ export class TimeSeries implements OnInit, OnDestroy {
   // Subscription to new dates from the store
   private dataASubscription: Subscription = new Subscription();
   private dataBSubscription: Subscription = new Subscription();
+  private dateRangeSubscription: Subscription = new Subscription();
   // Data received from the store
   timeSeriesParamsA: TimeSeriesParams | null = null;
   timeSeriesParamsB: TimeSeriesParams | null = null;
@@ -32,24 +34,47 @@ export class TimeSeries implements OnInit, OnDestroy {
   dataA: any[] = [];
   dataB: any[] = [];
 
-  public lineChartData: ChartConfiguration<'line'>['data'] = {
+  public areaChartData: ChartConfiguration<'line'>['data'] = {
     datasets: [],
   };
 
-  public lineChartOptions: ChartOptions<'line'> = {
+  public areaChartOptions: ChartOptions<'line'> = {
     responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      intersect: false,
+      mode: 'index',
+    },
     scales: {
       x: {
-        type: 'category',
+        type: 'time',
+        time: {
+          displayFormats: {
+            hour: 'MMM dd, HH:mm',
+            day: 'MMM dd',
+            week: 'MMM dd',
+            month: 'MMM yyyy'
+          },
+          tooltipFormat: 'PPpp'
+        },
         title: {
           display: true,
-          text: 'Date',
+          text: 'Date/Heure',
+        },
+        grid: {
+          display: true,
+          color: 'rgba(0, 0, 0, 0.1)',
         },
       },
       y: {
         title: {
           display: true,
-          text: 'Valeur',
+          text: 'Volume',
+        },
+        beginAtZero: true,
+        grid: {
+          display: true,
+          color: 'rgba(0, 0, 0, 0.1)',
         },
       },
     },
@@ -59,22 +84,41 @@ export class TimeSeries implements OnInit, OnDestroy {
         position: 'top',
       },
       tooltip: {
-        filter: function (tooltipItem) {
-          // Ne pas afficher de tooltip pour les valeurs null
-          return tooltipItem.parsed.y !== null;
-        },
+        mode: 'index',
+        intersect: false,
+        callbacks: {
+          title: function(tooltipItems) {
+            if (tooltipItems.length > 0 && tooltipItems[0].parsed.x !== null) {
+              const date = new Date(tooltipItems[0].parsed.x);
+              return date.toLocaleString();
+            }
+            return '';
+          },
+          label: function(context) {
+            let label = context.dataset.label || '';
+            if (label) {
+              label += ': ';
+            }
+            if (context.parsed.y !== null) {
+              label += context.parsed.y.toLocaleString();
+            }
+            return label;
+          }
+        }
       },
     },
     elements: {
       point: {
-        radius: function (context) {
-          // Ne pas afficher de points pour les valeurs null
-          return context.parsed.y === null ? 0 : 3;
-        },
+        radius: 2,
+        hoverRadius: 6,
+      },
+      line: {
+        tension: 0.2,
+        borderWidth: 2,
       },
     },
   };
-  public lineChartLegend = true;
+  public areaChartLegend = true;
 
   constructor(
     private api: ApiService,
@@ -82,28 +126,58 @@ export class TimeSeries implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit() {
-    this.dataASubscription = this.storeService.getDataA().subscribe((res) => {
-      this.timeSeriesParamsA = res;
-      if (res) this.callTimeSeriesApi('A');
-      else {
-        this.dataA = [];
-        this.updateChart();
+    // Subscribe to date range changes from the store
+    this.dateRangeSubscription = this.storeService.dateRange$.subscribe((dateRange) => {
+      if (dateRange.startDate && dateRange.endDate) {
+        this.timeSeriesParamsA = {
+          from: dateRange.startDate.toISOString(),
+          to: dateRange.endDate.toISOString(),
+          bucket: this.determineBucket(dateRange.startDate, dateRange.endDate)
+        };
+        this.callTimeSeriesApi('A');
       }
     });
 
-    this.dataBSubscription = this.storeService.getDataB().subscribe((res) => {
-      this.timeSeriesParamsB = res;
-      if (res) this.callTimeSeriesApi('B');
-      else {
-        this.dataB = [];
-        this.updateChart();
+    // Subscribe to the legacy data updates from sidebar (fallback)
+    this.dataASubscription = this.storeService.getDataA().subscribe((res) => {
+      if (res && res.startDate && res.endDate) {
+        // Convert the new date range format to the expected TimeSeriesParams format
+        this.timeSeriesParamsA = {
+          from: res.startDate.toISOString(),
+          to: res.endDate.toISOString(),
+          bucket: this.determineBucket(res.startDate, res.endDate)
+        };
+        this.callTimeSeriesApi('A');
       }
     });
+
+    // Initialize with default data for period A
+    const defaultEndDate = new Date();
+    const defaultStartDate = new Date(defaultEndDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+    this.timeSeriesParamsA = {
+      from: defaultStartDate.toISOString(),
+      to: defaultEndDate.toISOString(),
+      bucket: this.determineBucket(defaultStartDate, defaultEndDate)
+    };
+    
+    // Set initial date range in store
+    this.storeService.setDateRange(defaultStartDate, defaultEndDate);
+    this.callTimeSeriesApi('A');
   }
 
   ngOnDestroy() {
     this.dataASubscription.unsubscribe();
     this.dataBSubscription.unsubscribe();
+    this.dateRangeSubscription.unsubscribe();
+  }
+
+  private determineBucket(startDate: Date, endDate: Date): 'hour' | 'day' {
+    const diffMs = endDate.getTime() - startDate.getTime();
+    const diffDays = diffMs / (1000 * 60 * 60 * 24);
+    
+    // If the range is less than 3 days, use hourly buckets
+    // Otherwise use daily buckets
+    return diffDays <= 3 ? 'hour' : 'day';
   }
 
   callTimeSeriesApi(periode: 'A' | 'B') {
@@ -209,62 +283,47 @@ export class TimeSeries implements OnInit, OnDestroy {
     const datasets: any[] = [];
 
     if (hasA && dataAMap.size > 0) {
-      // Pour chaque date de la timeline, récupérer la valeur de A (ou null si absente)
-      const dataAValues = sortedDates.map((date) =>
-        dataAMap.has(date) ? dataAMap.get(date) : null,
-      );
+      // Create data points with x,y coordinates for datetime axis
+      const dataAPoints = sortedDates.map((date) => ({
+        x: new Date(date).getTime(),
+        y: dataAMap.get(date) || null,
+      })).filter(point => point.y !== null);
 
       datasets.push({
-        data: dataAValues,
-        label: 'Période A',
-        borderColor: 'rgba(54,162,235,1)',
-        backgroundColor: 'rgba(54,162,235,0.3)',
-        fill: false,
-        tension: 0.3,
-        spanGaps: true,
+        data: dataAPoints,
+        label: 'Analyse Crypto (Période A)',
+        borderColor: 'rgba(59, 130, 246, 1)',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        fill: true,
+        tension: 0.2,
+        pointRadius: 3,
+        pointHoverRadius: 6,
+        borderWidth: 2,
       });
     }
 
     if (hasB && dataBMap.size > 0) {
-      // Pour chaque date de la timeline, récupérer la valeur de B (ou null si absente)
-      const dataBValues = sortedDates.map((date) =>
-        dataBMap.has(date) ? dataBMap.get(date) : null,
-      );
+      // Create data points with x,y coordinates for datetime axis
+      const dataBPoints = sortedDates.map((date) => ({
+        x: new Date(date).getTime(),
+        y: dataBMap.get(date) || null,
+      })).filter(point => point.y !== null);
 
       datasets.push({
-        data: dataBValues,
-        label: 'Période B',
-        borderColor: 'rgba(255,99,132,1)',
-        backgroundColor: 'rgba(255,99,132,0.3)',
-        fill: false,
-        tension: 0.3,
-        spanGaps: true,
+        data: dataBPoints,
+        label: 'Analyse Crypto (Période B)',
+        borderColor: 'rgba(239, 68, 68, 1)',
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        fill: true,
+        tension: 0.2,
+        pointRadius: 3,
+        pointHoverRadius: 6,
+        borderWidth: 2,
       });
     }
 
-    // Formater les labels selon la granularité d'affichage
-    const formattedLabels = sortedDates.map((date) => {
-      const d = new Date(date);
-
-      if (displayGranularity === 'hour') {
-        // Affichage avec heures
-        return d.toLocaleString('fr-FR', {
-          day: '2-digit',
-          month: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-        });
-      } else {
-        // Affichage jours uniquement
-        return d.toLocaleDateString('fr-FR', {
-          day: '2-digit',
-          month: '2-digit',
-        });
-      }
-    });
-
-    this.lineChartData = {
-      labels: formattedLabels,
+    // For time-based charts, we don't need labels array
+    this.areaChartData = {
       datasets,
     };
   }

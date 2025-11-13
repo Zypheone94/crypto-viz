@@ -1,7 +1,9 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
+import { StoreService } from '../../../services/store.service';
+import { Subscription } from 'rxjs';
 
 interface CryptoGainer {
   symbol: string;
@@ -21,12 +23,46 @@ interface CryptoGainer {
   templateUrl: './top-gainers.html',
   styleUrls: ['./time-series.css'],
 })
-export class TopGainersComponent implements OnInit {
+export class TopGainersComponent implements OnInit, OnDestroy {
   gainers: CryptoGainer[] = [];
   isLoading = false;
+  private dateRangeSubscription: Subscription = new Subscription();
+
+  constructor(private storeService: StoreService) {}
 
   ngOnInit(): void {
+    // Subscribe to date range changes
+    this.dateRangeSubscription = this.storeService.dateRange$.subscribe((dateRange) => {
+      if (dateRange.startDate && dateRange.endDate) {
+        this.loadDataForDateRange(dateRange.startDate, dateRange.endDate);
+      } else {
+        this.loadMockData();
+      }
+    });
+    
     this.loadMockData();
+  }
+
+  ngOnDestroy(): void {
+    this.dateRangeSubscription.unsubscribe();
+  }
+
+  private loadDataForDateRange(startDate: Date, endDate: Date): void {
+    this.isLoading = true;
+    
+    // Simulate different data based on date range
+    const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    setTimeout(() => {
+      if (daysDiff <= 1) {
+        this.loadShortTermData();
+      } else if (daysDiff <= 7) {
+        this.loadWeeklyData();
+      } else {
+        this.loadLongTermData();
+      }
+      this.isLoading = false;
+    }, 500);
   }
 
   private loadMockData(): void {
@@ -113,7 +149,104 @@ export class TopGainersComponent implements OnInit {
     }, 800);
   }
 
+  private loadShortTermData(): void {
+    // Data for 24h or less - more volatile gainers
+    this.gainers = [
+      {
+        symbol: 'DOGE',
+        name: 'Dogecoin',
+        price: 0.42,
+        change24h: 0.08,
+        changePercent24h: 23.5,
+        volume24h: 12000000000,
+        marketCap: 62000000000
+      },
+      {
+        symbol: 'SHIB',
+        name: 'Shiba Inu',
+        price: 0.000035,
+        change24h: 0.000006,
+        changePercent24h: 20.7,
+        volume24h: 3200000000,
+        marketCap: 20600000000
+      },
+      {
+        symbol: 'PEPE',
+        name: 'Pepe',
+        price: 0.00002,
+        change24h: 0.000003,
+        changePercent24h: 18.2,
+        volume24h: 1800000000,
+        marketCap: 8400000000
+      }
+    ];
+  }
 
+  private loadWeeklyData(): void {
+    // Data for 7 days - moderate gainers
+    this.gainers = [
+      {
+        symbol: 'SOL',
+        name: 'Solana',
+        price: 245,
+        change24h: 18,
+        changePercent24h: 7.9,
+        volume24h: 8500000000,
+        marketCap: 115000000000
+      },
+      {
+        symbol: 'AVAX',
+        name: 'Avalanche',
+        price: 42.5,
+        change24h: 2.8,
+        changePercent24h: 7.1,
+        volume24h: 850000000,
+        marketCap: 16500000000
+      },
+      {
+        symbol: 'ATOM',
+        name: 'Cosmos',
+        price: 12.4,
+        change24h: 0.75,
+        changePercent24h: 6.4,
+        volume24h: 420000000,
+        marketCap: 4800000000
+      }
+    ];
+  }
+
+  private loadLongTermData(): void {
+    // Data for 30+ days - stable gainers
+    this.gainers = [
+      {
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        price: 67500,
+        change24h: 1200,
+        changePercent24h: 1.8,
+        volume24h: 45000000000,
+        marketCap: 1330000000000
+      },
+      {
+        symbol: 'ETH',
+        name: 'Ethereum',
+        price: 3800,
+        change24h: 45,
+        changePercent24h: 1.2,
+        volume24h: 28000000000,
+        marketCap: 456000000000
+      },
+      {
+        symbol: 'BNB',
+        name: 'BNB',
+        price: 635,
+        change24h: 5.5,
+        changePercent24h: 0.9,
+        volume24h: 2100000000,
+        marketCap: 92000000000
+      }
+    ];
+  }
 
   formatNumber(value: number): string {
     if (value >= 1e12) {
