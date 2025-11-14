@@ -109,9 +109,9 @@ def flush_batch(batch: List[Dict]) -> int:
             .alias("date"),
         ])
         .select([
-            "id", "title", "url", "source",
+            "id", "name", "url", "source",
             "published_at", "fetched_at",
-            "symbol", "price_usd", "market_cap_usd", "volume_24h", "coin_circulating",
+            "symbol", "price", "market_cap", "volume_24h", "coin_circulating",
             "ts",
             "date",
             "fetched_ts"
