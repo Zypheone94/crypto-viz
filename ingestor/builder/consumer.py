@@ -59,10 +59,10 @@ BATCH_MAX_SEC = int(os.getenv("BATCH_MAX_SEC", "5"))
 SLEEP_SEC = int(os.getenv("BUILDER_POLL_INTERVAL", "5"))
 
 SEEN_IDS: set[str] = set()
-
 def flush_batch(batch: List[Dict]) -> int:
     if not batch:
         return 0
+
     dedup: dict[str, dict] = {}
     for r in batch:
         rid = r.get("id") or _id(r)
@@ -75,6 +75,7 @@ def flush_batch(batch: List[Dict]) -> int:
     SEEN_IDS.update(r["id"] for r in new_rows)
 
     df = pl.DataFrame(new_rows)
+
     df = df.with_columns([
         pl.col("published_at")
           .cast(pl.Utf8)
@@ -82,6 +83,7 @@ def flush_batch(batch: List[Dict]) -> int:
           .str.strptime(pl.Datetime, format="%Y-%m-%dT%H:%M:%S%z", strict=False)
           .dt.convert_time_zone("UTC")
           .alias("ts"),
+
         pl.coalesce([
             pl.col("fetched_at").cast(pl.Utf8),
             pl.col("published_at").cast(pl.Utf8),
@@ -103,6 +105,7 @@ def flush_batch(batch: List[Dict]) -> int:
             pl.col("market_cap_usd").cast(pl.Float64, strict=False),
             pl.col("volume_24h").cast(pl.Float64, strict=False),
             pl.col("coin_circulating").cast(pl.Float64, strict=False),
+
             pl.when(pl.col("fetched_ts").is_not_null())
               .then(pl.col("fetched_ts").dt.date().cast(pl.Utf8))
               .otherwise(pl.lit("unknown"))
@@ -111,31 +114,22 @@ def flush_batch(batch: List[Dict]) -> int:
         .select([
             "id", "title", "url", "source",
             "published_at", "fetched_at",
-            "symbol", "price_usd", "market_cap_usd", "volume_24h", "coin_circulating",
+            "symbol", "price_usd", "market_cap_usd",
+            "volume_24h", "coin_circulating",
+            "ts",
             "date",
         ])
     )
 
-    missing_part = df.filter(pl.col("fetched_ts").is_null()).height
-    if missing_part > 0:
-        logger.warning(json.dumps({
-            "service": "builder", "mode": INGEST_SOURCE, "msg": "missing_partition_timestamp",
-            "count": missing_part, "partition": "date=unknown"
-        }))
-
     written = 0
     for key, g in valid.group_by("date"):
         date_value = key[0] if isinstance(key, tuple) else key
-        folder = str(date_value)  # déjà en str
+        folder = str(date_value)
         outdir = OUT_DIR / f"date={folder}"
         outdir.mkdir(parents=True, exist_ok=True)
         outpath = outdir / f"part-{int(time.time())}.parquet"
-
         g.write_parquet(outpath)
-        logger.info(json.dumps({
-            "service": "builder", "mode": INGEST_SOURCE, "msg": "parquet_written",
-            "date": folder, "rows": g.height, "path": str(outpath)
-        }))
+        logger.info(f"...")
         written += g.height
 
     return written
