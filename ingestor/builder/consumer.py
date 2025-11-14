@@ -23,18 +23,17 @@ def _clean_text(s: str | None) -> str | None:
 
 def _id(article: Dict) -> str:
     return hashlib.sha1(((article.get("url") or "") + (article.get("title") or "")).encode("utf-8")).hexdigest()
-
 def normalize(a: Dict) -> Dict:
     return {
         "id": a.get("id") or _id(a),
-        "title": a.get("title"),
+        "name": a.get("name") or a.get("title"),
         "url": a.get("url"),
         "source": a.get("source"),
         "published_at": a.get("published_at"),
         "fetched_at": a.get("fetched_at"),
         "symbol": a.get("symbol"),
-        "price_usd": a.get("price_usd"),
-        "market_cap_usd": a.get("market_cap_usd"),
+        "price": a.get("price") or a.get("price_usd"),
+        "market_cap": a.get("market_cap") or a.get("market_cap_usd"),
         "volume_24h": a.get("volume_24h"),
         "coin_circulating": a.get("coin_circulating"),
     }
