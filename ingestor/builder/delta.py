@@ -2,7 +2,7 @@ import os, time, pathlib
 import polars as pl
 from loguru import logger
 
-METRICS_ROOT = pathlib.Path(os.getenv("METRICS_ROOT", "../data/metrics"))
+METRICS_ROOT = pathlib.Path(os.getenv("METRICS_ROOT", "../../data/metrics"))
 GRANULARITY  = os.getenv("DELTA_GRANULARITY", "tumbling-1h")
 THRESHOLD_PCT = float(os.getenv("TRENDING_THRESHOLD_PCT", "50"))
 

@@ -2,8 +2,8 @@ import os, time, pathlib
 import polars as pl
 from loguru import logger
 
-CLEAN_ROOT   = pathlib.Path(os.getenv("CLEAN_ROOT", "../data/clean/parquet"))
-METRICS_ROOT = pathlib.Path(os.getenv("METRICS_ROOT", "../data/metrics/windowed"))
+CLEAN_ROOT   = pathlib.Path(os.getenv("CLEAN_ROOT", "../../data/clean"))
+METRICS_ROOT = pathlib.Path(os.getenv("METRICS_ROOT", "../../data/metrics/windowed"))
 
 def load_lazy() -> pl.LazyFrame:
     patt = str(CLEAN_ROOT / "**" / "*.parquet")
@@ -14,7 +14,9 @@ def load_lazy() -> pl.LazyFrame:
         raise RuntimeError(f"'ts' column not found in {patt}")
 
     return lf.select(
-        pl.col("fetched_at").cast(pl.Datetime(time_zone="UTC")).alias("fetched_at")
+        pl.col("fetched_at")
+        .str.to_datetime(format="%Y-%m-%dT%H:%M:%S%.f", time_zone="UTC")
+        .alias("fetched_at")
     )
 
 def _normalize_boundaries(df: pl.DataFrame) -> pl.DataFrame:
@@ -45,9 +47,9 @@ def _period_to_kwargs(period: str) -> dict:
 
 def compute_window(lf: pl.LazyFrame, *, every: str, period: str) -> pl.DataFrame:
     out = (
-        lf.sort("ts")
+        lf.sort("fetched_at")
           .group_by_dynamic(
-              index_column="ts",
+              index_column="fetched_at",
               every=every,
               period=period,
               closed="left",
