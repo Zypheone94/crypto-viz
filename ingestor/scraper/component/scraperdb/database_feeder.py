@@ -155,10 +155,6 @@ def ingest_rows(cur: sqlite3.Cursor, rows: Iterable[dict], existing_urls: set[st
         url = row.get("url")
         symbol = row.get("symbol")
 
-        if url and url in existing_urls:
-            skipped += 1
-            continue
-
         if symbol:
             cur.execute("INSERT OR IGNORE INTO symbol(symbol) VALUES (?)", (symbol,))
 
