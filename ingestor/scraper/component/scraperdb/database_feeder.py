@@ -54,10 +54,8 @@ def load_frame(path: Path) -> pd.DataFrame | None:
 def normalise_frame(df: pd.DataFrame) -> pd.DataFrame:
     renamed = df.rename(columns={c: c.lower() for c in df.columns})
     aliases = {
-        "title": "titre",
         "headline": "titre",
         "link": "url",
-        "source_name": "source",
         "price_usd": "price",
         "market_cap_usd": "market_cap",
         "marketcap": "market_cap",
@@ -72,9 +70,7 @@ def normalise_frame(df: pd.DataFrame) -> pd.DataFrame:
 
     expected = [
         "fetched_at",
-        "titre",
         "url",
-        "source",
         "symbol",
         "name",
         "price",
@@ -170,14 +166,12 @@ def ingest_rows(cur: sqlite3.Cursor, rows: Iterable[dict]) -> tuple[int, int]:
 
         cur.execute(
             """
-            INSERT INTO article(fetched_at, titre, url, source, symbol, name, price, market_cap, coin_circulating)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO article(fetched_at, url, symbol, name, price, market_cap, coin_circulating)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 row.get("fetched_at"),
-                row.get("titre"),
                 row.get("url"),
-                row.get("source"),
                 symbol,
                 row.get("name"),
                 row.get("price"),

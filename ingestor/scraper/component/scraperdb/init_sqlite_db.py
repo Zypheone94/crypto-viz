@@ -31,9 +31,7 @@ cur.execute('''
 CREATE TABLE IF NOT EXISTS article (
     id INTEGER PRIMARY KEY,
     fetched_at TIMESTAMP,
-    titre TEXT,
     url TEXT,
-    source TEXT,
     symbol TEXT NOT NULL,
     name TEXT,
     price FLOAT,
