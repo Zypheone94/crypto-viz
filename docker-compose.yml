@@ -26,7 +26,7 @@ services:
       context: .
       dockerfile: ingestor/scraper/component/scraperdb/Dockerfile
     volumes:
-      - ./ingestor:/app/ingestor
+      - .:/app
       - ./data:/data
     env_file:
       - .env
