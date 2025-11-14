@@ -10,11 +10,11 @@ def load_lazy() -> pl.LazyFrame:
     lf = pl.scan_parquet(patt)
 
     names = lf.collect_schema().names()
-    if "ts" not in names:
+    if "fetched_at" not in names:
         raise RuntimeError(f"'ts' column not found in {patt}")
 
     return lf.select(
-        pl.col("ts").cast(pl.Datetime(time_zone="UTC")).alias("ts")
+        pl.col("fetched_at").cast(pl.Datetime(time_zone="UTC")).alias("fetched_at")
     )
 
 def _normalize_boundaries(df: pl.DataFrame) -> pl.DataFrame:
@@ -24,7 +24,6 @@ def _normalize_boundaries(df: pl.DataFrame) -> pl.DataFrame:
     if rename:
         df = df.rename(rename)
 
-    # Casts + tri final
     for c in ("window_start", "window_end"):
         if c in df.columns:
             df = df.with_columns(pl.col(c).cast(pl.Datetime(time_zone="UTC")))
@@ -62,8 +61,8 @@ def compute_window(lf: pl.LazyFrame, *, every: str, period: str) -> pl.DataFrame
     df = _normalize_boundaries(df)
 
     if "window_start" not in df.columns:
-        if "ts" in df.columns:
-            df = df.rename({"ts": "window_start"})
+        if "fetched_at" in df.columns:
+            df = df.rename({"fetched_at": "window_start"})
         df = df.with_columns(
             (pl.col("window_start") + pl.duration(**_period_to_kwargs(period))).alias("window_end")
         ).select(["window_start", "window_end", "count"]).sort("window_start")
