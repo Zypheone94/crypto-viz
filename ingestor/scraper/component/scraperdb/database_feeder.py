@@ -58,17 +58,20 @@ def normalise_frame(df: pd.DataFrame) -> pd.DataFrame:
         "headline": "titre",
         "link": "url",
         "source_name": "source",
+        "price_usd": "price",
+        "market_cap_usd": "market_cap",
         "marketcap": "market_cap",
         "marketCap": "market_cap",
         "circulating_supply": "coin_circulating",
         "circulating": "coin_circulating",
+        "date": "fetched_at",
     }
     for original, alias in aliases.items():
         if original in renamed.columns and alias not in renamed.columns:
             renamed = renamed.rename(columns={original: alias})
 
     expected = [
-        "date",
+        "fetched_at",
         "titre",
         "url",
         "source",
@@ -81,6 +84,10 @@ def normalise_frame(df: pd.DataFrame) -> pd.DataFrame:
     for col in expected:
         if col not in renamed.columns:
             renamed[col] = None
+
+    numeric_cols = ["price", "market_cap", "coin_circulating"]
+    for col in numeric_cols:
+        renamed[col] = pd.to_numeric(renamed[col], errors="coerce")
 
     return renamed[expected]
 
@@ -103,11 +110,13 @@ def clean_parent_dirs(path: Path) -> None:
         parent.rmdir()
     except OSError:
         return
-    # Attempt to clean one level up if the date folder became empty.
-    try:
-        parent.parent.rmdir()
-    except OSError:
-        pass
+    # Avoid removing the OUT_DIR itself; only prune empty date folders.
+    grandparent = parent.parent
+    if grandparent.exists() and grandparent != OUT_DIR:
+        try:
+            grandparent.rmdir()
+        except OSError:
+            pass
 
 
 def clean_retained_dirs(path: Path) -> None:
@@ -116,10 +125,12 @@ def clean_retained_dirs(path: Path) -> None:
         parent.rmdir()
     except OSError:
         return
-    try:
-        parent.parent.rmdir()
-    except OSError:
-        pass
+    grandparent = parent.parent
+    if grandparent.exists() and grandparent != RETAIN_DIR:
+        try:
+            grandparent.rmdir()
+        except OSError:
+            pass
 
 
 def prune_retained() -> None:
@@ -149,28 +160,23 @@ def retain_file(src: Path) -> None:
     clean_parent_dirs(src)
 
 
-def ingest_rows(cur: sqlite3.Cursor, rows: Iterable[dict], existing_urls: set[str]) -> tuple[int, int]:
-    inserted, skipped = 0, 0
+def ingest_rows(cur: sqlite3.Cursor, rows: Iterable[dict]) -> tuple[int, int]:
+    inserted = 0
     for row in rows:
-        url = row.get("url")
         symbol = row.get("symbol")
-
-        if url and url in existing_urls:
-            skipped += 1
-            continue
 
         if symbol:
             cur.execute("INSERT OR IGNORE INTO symbol(symbol) VALUES (?)", (symbol,))
 
         cur.execute(
             """
-            INSERT INTO article(date, titre, url, source, symbol, name, price, market_cap, coin_circulating)
+            INSERT INTO article(fetched_at, titre, url, source, symbol, name, price, market_cap, coin_circulating)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                row.get("date"),
+                row.get("fetched_at"),
                 row.get("titre"),
-                url,
+                row.get("url"),
                 row.get("source"),
                 symbol,
                 row.get("name"),
@@ -181,13 +187,11 @@ def ingest_rows(cur: sqlite3.Cursor, rows: Iterable[dict], existing_urls: set[st
         )
 
         inserted += 1
-        if url:
-            existing_urls.add(url)
 
-    return inserted, skipped
+    return inserted, 0
 
 
-def process_file(cur: sqlite3.Cursor, path: Path, existing_urls: set[str]) -> tuple[int, int]:
+def process_file(cur: sqlite3.Cursor, path: Path) -> tuple[int, int]:
     frame = load_frame(path)
     if frame is None:
         move_to_reject(path)
@@ -200,17 +204,12 @@ def process_file(cur: sqlite3.Cursor, path: Path, existing_urls: set[str]) -> tu
         return 0, 0
 
     payload = normalise_frame(frame)
-    inserted, skipped = ingest_rows(cur, payload.to_dict("records"), existing_urls)
+    inserted, skipped = ingest_rows(cur, payload.to_dict("records"))
     LOGGER.info("File %s: inserted=%s skipped=%s", path, inserted, skipped)
 
     retain_file(path)
 
     return inserted, skipped
-
-
-def refresh_existing_urls(cur: sqlite3.Cursor) -> set[str]:
-    cur.execute("SELECT url FROM article WHERE url IS NOT NULL")
-    return {row[0] for row in cur.fetchall()}
 
 
 def run_cycle() -> None:
@@ -225,12 +224,11 @@ def run_cycle() -> None:
     con = sqlite3.connect(DB_PATH)
     try:
         cur = con.cursor()
-        existing_urls = refresh_existing_urls(cur)
         inserted_total = 0
         skipped_total = 0
 
         for file_path in files:
-            inserted, skipped = process_file(cur, file_path, existing_urls)
+            inserted, skipped = process_file(cur, file_path)
             inserted_total += inserted
             skipped_total += skipped
 
