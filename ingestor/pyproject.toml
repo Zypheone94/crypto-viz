@@ -27,6 +27,7 @@ dependencies = [
     "fastapi",
     "typer",
     "pandas",
+    "pyarrow",
     "httpx",
     "beautifulsoup4",
     "lxml",

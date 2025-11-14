@@ -14,12 +14,23 @@ services:
       - .env
 
   scraper:
-      build:
-        context: .
-        dockerfile: ingestor/scraper/component/scraper/Dockerfile
-      volumes:
-        - ./ingestor:/app/ingestor
-      working_dir: /app/ingestor/scraper/component/scraper
+    build:
+      context: .
+      dockerfile: ingestor/scraper/component/scraper/Dockerfile
+    volumes:
+      - ./ingestor:/app/ingestor
+    working_dir: /app/ingestor/scraper/component/scraper
+
+  feeder:
+    build:
+      context: .
+      dockerfile: ingestor/scraper/component/scraperdb/Dockerfile
+    volumes:
+      - .:/app
+      - ./data:/data
+    env_file:
+      - .env
+    command: python ingestor/scraper/component/scraperdb/database_feeder.py
 
   web:
     build:
@@ -39,6 +50,7 @@ services:
       dockerfile: ingestor/builder/Dockerfile
     volumes:
       - .:/app
+      - ./data:/data
     command: python ingestor/builder/consumer.py
     env_file:
       - .env
@@ -52,7 +64,7 @@ services:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: user    # Default user
+      RABBITMQ_DEFAULT_USER: user # Default user
       RABBITMQ_DEFAULT_PASS: password # Default Password
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
