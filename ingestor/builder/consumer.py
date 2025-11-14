@@ -91,28 +91,30 @@ def flush_batch(batch: List[Dict]) -> int:
         .dt.convert_time_zone("UTC")
         .alias("fetched_ts"),
     ])
-
     valid = (
         df.with_columns([
-            pl.col("title").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
+            pl.col("name").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
             pl.col("url").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
             pl.col("source").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
             pl.col("symbol").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
 
-            pl.col("price_usd").cast(pl.Float64, strict=False),
-            pl.col("market_cap_usd").cast(pl.Float64, strict=False),
+            pl.col("price").cast(pl.Float64, strict=False),
+            pl.col("market_cap").cast(pl.Float64, strict=False),
             pl.col("volume_24h").cast(pl.Float64, strict=False),
             pl.col("coin_circulating").cast(pl.Float64, strict=False),
+
             pl.when(pl.col("fetched_ts").is_not_null())
-              .then(pl.col("fetched_ts").dt.date().cast(pl.Utf8))
-              .otherwise(pl.lit("unknown"))
-              .alias("date"),
+            .then(pl.col("fetched_ts").dt.date().cast(pl.Utf8))
+            .otherwise(pl.lit("unknown"))
+            .alias("date"),
         ])
         .select([
-            "id", "title", "url", "source",
+            "id", "name", "url", "source",
             "published_at", "fetched_at",
-            "symbol", "price_usd", "market_cap_usd", "volume_24h", "coin_circulating",
+            "symbol", "price", "market_cap", "volume_24h", "coin_circulating",
+            "ts",
             "date",
+            "fetched_ts"
         ])
     )
 
