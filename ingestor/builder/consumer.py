@@ -93,13 +93,13 @@ def flush_batch(batch: List[Dict]) -> int:
     ])
     valid = (
         df.with_columns([
-            pl.col("title").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
+            pl.col("name").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
             pl.col("url").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
             pl.col("source").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
             pl.col("symbol").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
 
-            pl.col("price_usd").cast(pl.Float64, strict=False),
-            pl.col("market_cap_usd").cast(pl.Float64, strict=False),
+            pl.col("price").cast(pl.Float64, strict=False),
+            pl.col("market_cap").cast(pl.Float64, strict=False),
             pl.col("volume_24h").cast(pl.Float64, strict=False),
             pl.col("coin_circulating").cast(pl.Float64, strict=False),
 
@@ -111,7 +111,7 @@ def flush_batch(batch: List[Dict]) -> int:
         .select([
             "id", "title", "url", "source",
             "published_at", "fetched_at",
-            "symbol", "price_usd", "market_cap_usd", "volume_24h", "coin_circulating",
+            "symbol", "price", "market_cap", "volume_24h", "coin_circulating",
             "ts",
             "date",
             "fetched_ts"
