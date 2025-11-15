@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS article (
     name TEXT,
     price FLOAT,
     market_cap FLOAT,
+    volume_24h FLOAT,
     coin_circulating FLOAT,
     FOREIGN KEY(symbol) REFERENCES symbol(symbol)
 );

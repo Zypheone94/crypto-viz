@@ -64,6 +64,7 @@ def normalise_frame(df: pd.DataFrame) -> pd.DataFrame:
         "market_cap_usd": "market_cap",
         "marketcap": "market_cap",
         "marketCap": "market_cap",
+        "volume_24h": "volume_24h",
         "circulating_supply": "coin_circulating",
         "circulating": "coin_circulating",
         "date": "fetched_at",
@@ -79,13 +80,14 @@ def normalise_frame(df: pd.DataFrame) -> pd.DataFrame:
         "name",
         "price",
         "market_cap",
+        "volume_24h",
         "coin_circulating",
     ]
     for col in expected:
         if col not in renamed.columns:
             renamed[col] = None
 
-    numeric_cols = ["price", "market_cap", "coin_circulating"]
+    numeric_cols = ["price", "market_cap", "coin_circulating", "volume_24h"]
     for col in numeric_cols:
         renamed[col] = pd.to_numeric(renamed[col], errors="coerce")
 
@@ -170,8 +172,8 @@ def ingest_rows(cur: sqlite3.Cursor, rows: Iterable[dict]) -> tuple[int, int]:
 
         cur.execute(
             """
-            INSERT INTO article(fetched_at, url, symbol, name, price, market_cap, coin_circulating)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO article(fetched_at, url, symbol, name, price, market_cap, volume_24h, coin_circulating)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 row.get("fetched_at"),
@@ -180,6 +182,7 @@ def ingest_rows(cur: sqlite3.Cursor, rows: Iterable[dict]) -> tuple[int, int]:
                 row.get("name"),
                 row.get("price"),
                 row.get("market_cap"),
+                row.get("volume_24h"),
                 row.get("coin_circulating"),
             ),
         )
