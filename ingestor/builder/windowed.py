@@ -61,9 +61,9 @@ def _period_to_kwargs(period: str) -> dict:
     raise ValueError(f"Unsupported period: {period}")
 def compute_window(lf: pl.LazyFrame, *, every: str, period: str) -> pl.DataFrame:
     out = (
-        lf.sort("fetched_at")
+        lf.sort("ts")
           .group_by_dynamic(
-              index_column="fetched_at",
+              index_column="ts",
               every=every,
               period=period,
               closed="left",

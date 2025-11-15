@@ -244,9 +244,23 @@ def populate_delta_parquets() -> None:
     delta_main()
     populate_delta_table()
 
-def populate_delta_table() -> None:
-    print("ok")
+"""def feed_delta_table() -> None:
+    for row in rows:
+"""
 
+def populate_delta_table() -> None:
+    files = find_parquet_files(DELTA_PARQUET_DIR)
+    if not files:
+        LOGGER.info("No parquet files found under %s", OUT_DIR)
+        return
+
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(DB_PATH)
+    try:
+        cur = con.cursor()
+    except:
+        LOGGER.info("No database found under %s", OUT_DIR)
+        return
 
 def main() -> None:
     LOGGER.info(
@@ -266,6 +280,7 @@ def main() -> None:
                 hour_countdown += 1
 
                 if hour_countdown >= 15:
+                    print("delta parquets ready")
                     populate_delta_parquets()
                     hour_countdown = 0
 
