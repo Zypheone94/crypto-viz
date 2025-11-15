@@ -2,8 +2,11 @@ import os, time, pathlib
 import polars as pl
 from loguru import logger
 
-CLEAN_ROOT   = pathlib.Path(os.getenv("CLEAN_ROOT", "../../data/clean/parquet"))
+CLEAN_ROOT = pathlib.Path(os.getenv("CLEAN_ROOT", "../../data/clean/parquet"))
 METRICS_ROOT = pathlib.Path(os.getenv("METRICS_ROOT", "../../data/metrics/windowed"))
+MAX_PARQUET_FILES = 2  # Garder maximum 2 fichiers par granularité
+
+
 def load_lazy() -> pl.LazyFrame:
     patt = str(CLEAN_ROOT / "**" / "*.parquet")
     lf = pl.scan_parquet(patt)
@@ -20,9 +23,9 @@ def load_lazy() -> pl.LazyFrame:
     else:
         ts_expr = (
             pl.col("fetched_at")
-              .cast(pl.Utf8)
-              .str.replace(r"Z$", "+00:00")
-              .str.strptime(pl.Datetime, strict=False)
+            .cast(pl.Utf8)
+            .str.replace(r"Z$", "+00:00")
+            .str.strptime(pl.Datetime, strict=False)
         )
 
     lf = lf.select(
@@ -51,6 +54,7 @@ def _normalize_boundaries(df: pl.DataFrame) -> pl.DataFrame:
 
     return df
 
+
 def _period_to_kwargs(period: str) -> dict:
     if period.endswith("h"):
         return {"hours": int(period[:-1])}
@@ -59,22 +63,24 @@ def _period_to_kwargs(period: str) -> dict:
     if period.endswith("d"):
         return {"days": int(period[:-1])}
     raise ValueError(f"Unsupported period: {period}")
+
+
 def compute_window(lf: pl.LazyFrame, *, every: str, period: str) -> pl.DataFrame:
     out = (
         lf.sort("ts")
-          .group_by_dynamic(
-              index_column="ts",
-              every=every,
-              period=period,
-              closed="left",
-              include_boundaries=True,
-              label="left",
-              group_by="symbol",
-          )
-          .agg([
-              pl.len().alias("count"),
-              pl.col("price").last().alias("price"),
-          ])
+        .group_by_dynamic(
+            index_column="ts",
+            every=every,
+            period=period,
+            closed="left",
+            include_boundaries=True,
+            label="left",
+            group_by="symbol",
+        )
+        .agg([
+            pl.len().alias("count"),
+            pl.col("price").last().alias("price"),
+        ])
     )
     df = out.collect()
     df = _normalize_boundaries(df)
@@ -89,15 +95,47 @@ def compute_window(lf: pl.LazyFrame, *, every: str, period: str) -> pl.DataFrame
     ).sort(["symbol", "window_start"])
 
 
+def prune_old_parquets(outdir: pathlib.Path, max_files: int = MAX_PARQUET_FILES) -> None:
+    if not outdir.exists():
+        return
+
+    # Lister tous les fichiers parquet triés par date de modification (plus ancien en premier)
+    parquet_files = sorted(
+        outdir.glob("*.parquet"),
+        key=lambda p: p.stat().st_mtime
+    )
+
+    # Supprimer les fichiers en excès (garder seulement les max_files plus récents)
+    files_to_delete = parquet_files[:-max_files] if len(parquet_files) > max_files else []
+
+    for old_file in files_to_delete:
+        try:
+            old_file.unlink()
+            logger.info(f"[windowed] deleted old file: {old_file.name}")
+        except Exception as e:
+            logger.warning(f"[windowed] failed to delete {old_file}: {e}")
+
+
 def write_parquet(df: pl.DataFrame, granularity: str) -> None:
+    """
+    Écrit un nouveau fichier parquet et supprime les anciens si nécessaire.
+    Garde toujours les MAX_PARQUET_FILES plus récents.
+    """
     outdir = METRICS_ROOT / granularity
     outdir.mkdir(parents=True, exist_ok=True)
+
+    # Écrire le nouveau fichier
     outpath = outdir / f"part-{int(time.time())}.parquet"
     df.write_parquet(outpath)
     logger.info(f"[windowed] wrote {df.height} rows -> {outpath}")
 
+    # Nettoyer les anciens fichiers
+    prune_old_parquets(outdir, MAX_PARQUET_FILES)
+
+
 def main():
-    logger.remove(); logger.add(lambda m: print(m, end=""))
+    logger.remove();
+    logger.add(lambda m: print(m, end=""))
 
     try:
         lf = load_lazy()
@@ -122,6 +160,7 @@ def main():
         write_parquet(s1h30, "sliding-1h-step-30m")
     else:
         logger.info("[windowed] sliding-1h-step-30m -> empty")
+
 
 if __name__ == "__main__":
     main()

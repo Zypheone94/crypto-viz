@@ -158,7 +158,7 @@ def rabbitmq_source(queue: str = RABBIT_QUEUE) -> Iterable[Dict]:
     credentials = pika.PlainCredentials(RABBIT_USER, RABBIT_PASS)
     parameters = pika.ConnectionParameters(host=RABBIT_HOST, port=RABBIT_PORT, credentials=credentials)
 
-    max_attempts = 10
+    max_attempts = 50
     for attempt in range(max_attempts):
         try:
             connection = pika.BlockingConnection(parameters)

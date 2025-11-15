@@ -100,6 +100,7 @@ bin/
 build/
 !**/src/main/**/build/
 !**/src/test/**/build/
+*.parquet
 
 ### VS Code ###
 .vscode/
