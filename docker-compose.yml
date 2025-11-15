@@ -49,7 +49,7 @@ services:
       context: .
       dockerfile: ingestor/builder/Dockerfile
     volumes:
-      - ./ingestor/builder:/app/ingestor/builder
+      - .:/app
       - ./data:/data
     command: python ingestor/builder/consumer.py
     env_file:
