@@ -96,10 +96,6 @@ def compute_window(lf: pl.LazyFrame, *, every: str, period: str) -> pl.DataFrame
 
 
 def prune_old_parquets(outdir: pathlib.Path, max_files: int = MAX_PARQUET_FILES) -> None:
-    """
-    Garde seulement les N fichiers les plus récents dans le répertoire.
-    Supprime les plus anciens.
-    """
     if not outdir.exists():
         return
 

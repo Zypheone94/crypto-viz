@@ -9,6 +9,7 @@ import sqlite3
 import time
 from pathlib import Path
 from typing import Iterable
+import math
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -58,7 +59,6 @@ def load_frame(path: Path) -> pd.DataFrame | None:
 def normalise_frame(df: pd.DataFrame) -> pd.DataFrame:
     renamed = df.rename(columns={c: c.lower() for c in df.columns})
     aliases = {
-        "headline": "titre",
         "link": "url",
         "price_usd": "price",
         "market_cap_usd": "market_cap",
@@ -249,7 +249,6 @@ def run_cycle() -> None:
         for file_path in files:
             inserted, skipped = process_file(cur, file_path, process_with_ingest)
             inserted_total += inserted
-            inserted_total += inserted
             skipped_total += skipped
 
         con.commit()
@@ -293,14 +292,11 @@ def feed_delta_table(cur: sqlite3.Cursor, rows: Iterable[dict]) -> tuple[int, in
             delta = row.get('delta')
             delta_pct = row.get('delta_pct')
 
-            # Skip if delta or delta_pct is None, empty string, NaN, or zero
             if delta is None or delta_pct is None or delta == '' or delta_pct == '':
                 skipped += 1
                 continue
 
-            # Check for NaN values (if using pandas/numpy)
             try:
-                import math
                 if math.isnan(delta) or math.isnan(delta_pct):
                     skipped += 1
                     continue
@@ -375,31 +371,33 @@ def populate_delta_table() -> None:
     finally:
         con.close()
 
+
 def main() -> None:
     LOGGER.info(
         "Feeder starting with OUT_DIR=%s DB=%s interval=%ss",
         OUT_DIR, DB_PATH, POLL_SECONDS
     )
-    hour_countdown = 0
+
+    DELTA_INTERVAL = 3600
+    last_delta_time = time.time()
+
     try:
         while True:
-            start = time.time()
+            cycle_start = time.time()
             run_cycle()
-            duration = int(time.time() - start)
-            hour_countdown += duration
+            duration = int(time.time() - cycle_start)
 
-            for _ in range(POLL_SECONDS):
-                time.sleep(1)
-                hour_countdown += 1
-
-                if hour_countdown >= 3600:
-                    print("delta parquets ready")
+            sleep_time = max(0, POLL_SECONDS - duration)
+            for _ in range(sleep_time):
+                if time.time() - last_delta_time >= DELTA_INTERVAL:
+                    LOGGER.info("delta parquets ready (%s seconds elapsed)", DELTA_INTERVAL)
                     populate_delta_parquets()
-                    hour_countdown = 0
+                    last_delta_time = time.time()
+
+                time.sleep(1)
 
     except KeyboardInterrupt:
         LOGGER.info("Shutdown requested")
-
 
 if __name__ == "__main__":
     main()
