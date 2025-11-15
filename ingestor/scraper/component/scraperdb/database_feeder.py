@@ -189,26 +189,44 @@ def ingest_rows(cur: sqlite3.Cursor, rows: Iterable[dict]) -> tuple[int, int]:
     return inserted, 0
 
 
-def process_file(cur: sqlite3.Cursor, path: Path, process_func) -> tuple[int, int]:
+def process_file(cur: sqlite3.Cursor, path: Path, process_func, base_dir: Path = OUT_DIR, normalize: bool = True, retain: bool = True) -> tuple[int, int]:
     frame = load_frame(path)
     if frame is None:
-        move_to_reject(path)
+        if retain:
+            move_to_reject(path)
+        else:
+            LOGGER.error("Failed to load file %s", path)
         return 0, 0
 
     if frame.empty:
         LOGGER.info("Skipping empty parquet %s", path)
-        path.unlink(missing_ok=True)
-        clean_parent_dirs(path)
+        if retain:
+            path.unlink(missing_ok=True)
+            clean_parent_dirs(path)
         return 0, 0
 
-    payload = normalise_frame(frame)
+    payload = normalise_frame(frame) if normalize else frame
     result = process_func(payload)
     LOGGER.info("File %s: inserted=%s skipped=%s", path, result[0], result[1])
 
-    retain_file(path)
+    if retain:
+        retain_file_with_base(path, base_dir)
 
     return result
 
+
+def retain_file_with_base(src: Path, base_dir: Path) -> None:
+    if RETAIN_MAX <= 0:
+        src.unlink(missing_ok=True)
+        clean_parent_dirs(src)
+        return
+
+    relative = src.relative_to(base_dir)
+    dest = RETAIN_DIR / relative
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(src), dest)
+    prune_retained()
+    clean_parent_dirs(src)
 
 def run_cycle() -> None:
     files = find_parquet_files(OUT_DIR)
@@ -239,28 +257,123 @@ def run_cycle() -> None:
     finally:
         con.close()
 
+
+def manage_delta_files() -> list[Path]:
+    files = find_parquet_files(DELTA_PARQUET_DIR)
+    if not files:
+        LOGGER.info("No delta parquet files found under %s", DELTA_PARQUET_DIR)
+        return []
+
+    files_sorted = sorted(files, key=lambda p: p.stat().st_mtime)
+
+    if len(files_sorted) < 2:
+        LOGGER.info("Only %s delta file(s), waiting for more before processing", len(files_sorted))
+        return []
+
+    file_to_process = files_sorted[0]
+    LOGGER.info("Processing oldest delta file: %s (keeping %s newer file(s))",
+                file_to_process.name, len(files_sorted) - 1)
+
+    return [file_to_process]
+
 def populate_delta_parquets() -> None:
     windowed_main()
     delta_main()
     populate_delta_table()
 
-"""def feed_delta_table() -> None:
+
+def feed_delta_table(cur: sqlite3.Cursor, rows: Iterable[dict]) -> tuple[int, int]:
+    inserted = 0
+    skipped = 0
     for row in rows:
-"""
+        try:
+            symbol = row.get('symbol')
+            window_start = row.get('window_start')
+            window_end = row.get('window_end')
+            delta = row.get('delta')
+            delta_pct = row.get('delta_pct')
+
+            # Skip if delta or delta_pct is None, empty string, NaN, or zero
+            if delta is None or delta_pct is None or delta == '' or delta_pct == '':
+                skipped += 1
+                continue
+
+            # Check for NaN values (if using pandas/numpy)
+            try:
+                import math
+                if math.isnan(delta) or math.isnan(delta_pct):
+                    skipped += 1
+                    continue
+            except (TypeError, ValueError):
+                pass
+
+            if hasattr(window_start, 'isoformat'):
+                window_start = window_start.isoformat()
+            if hasattr(window_end, 'isoformat'):
+                window_end = window_end.isoformat()
+
+            window_label = f"{symbol}_{window_start}_{window_end}"
+
+            cur.execute("""
+                        INSERT INTO delta (symbol, date_start, date_end,
+                                           window_label, delta, delta_pct)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """, (
+                            symbol,
+                            window_start,
+                            window_end,
+                            window_label,
+                            delta,
+                            delta_pct
+                        ))
+
+            inserted += 1
+
+        except Exception as exc:
+            LOGGER.error("Failed to insert delta row: %s", exc)
+            skipped += 1
+            continue
+
+    return inserted, skipped
+
 
 def populate_delta_table() -> None:
-    files = find_parquet_files(DELTA_PARQUET_DIR)
+    files = manage_delta_files()
     if not files:
-        LOGGER.info("No parquet files found under %s", OUT_DIR)
         return
 
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(DB_PATH)
     try:
         cur = con.cursor()
-    except:
-        LOGGER.info("No database found under %s", OUT_DIR)
-        return
+        inserted_total = 0
+        skipped_total = 0
+
+        def process_feed_delta_table(payload: pd.DataFrame) -> tuple[int, int]:
+            return feed_delta_table(cur, payload.to_dict("records"))
+
+        for file_path in files:
+            inserted, skipped = process_file(
+                cur,
+                file_path,
+                process_feed_delta_table,
+                base_dir=DELTA_PARQUET_DIR,
+                normalize=False,
+                retain=False
+            )
+            inserted_total += inserted
+            skipped_total += skipped
+
+            file_path.unlink(missing_ok=True)
+            LOGGER.info("Deleted processed delta file: %s", file_path.name)
+
+        con.commit()
+        LOGGER.info("Delta cycle stats: inserted=%s skipped=%s", inserted_total, skipped_total)
+
+    except Exception as exc:
+        LOGGER.error("Failed to populate delta table: %s", exc)
+    finally:
+        con.close()
 
 def main() -> None:
     LOGGER.info(
@@ -279,7 +392,7 @@ def main() -> None:
                 time.sleep(1)
                 hour_countdown += 1
 
-                if hour_countdown >= 15:
+                if hour_countdown >= 3600:
                     print("delta parquets ready")
                     populate_delta_parquets()
                     hour_countdown = 0
