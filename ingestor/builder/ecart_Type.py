@@ -226,7 +226,7 @@ def load_data_from_db(db_path: str | Path = None, limit: int = 1000) -> pl.DataF
         # Ensure proper data types
         df = df.with_columns([
             pl.col("price_usd").cast(pl.Float64),
-            pl.col("ts").cast(pl.Datetime(time_zone="UTC"))
+            pl.col("ts").str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC")
         ])
 
         return df
@@ -370,3 +370,207 @@ def get_symbol_analysis(symbol: str, period: int = 14, limit: int = 1000, db_pat
             }
         }
     }
+
+
+def create_sample_data_in_db(db_path: str | Path = None) -> bool:
+    """
+    Create sample data in the database for testing the ecart type analysis.
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    if db_path is None:
+        db_path = Path(__file__).parent.parent / "scraper/component/scraperdb/data/ingestor.db"
+    db_path = Path(db_path)
+    
+    try:
+        # Generate sample data
+        df = generate_sample_data()
+        
+        # Connect to database and insert data
+        with sqlite3.connect(str(db_path)) as con:
+            # First, ensure symbols exist in symbol table
+            symbols = df['symbol'].unique().to_list()
+            for symbol in symbols:
+                con.execute("INSERT OR IGNORE INTO symbol (symbol) VALUES (?)", (symbol,))
+            
+            # Insert sample data into article table
+            for row in df.to_dicts():
+                con.execute("""
+                    INSERT INTO article (date, titre, url, source, symbol, name, price, market_cap, coin_circulating)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    row['ts'],
+                    f"Sample article for {row['symbol']}",
+                    "https://example.com",
+                    "sample_source",
+                    row['symbol'],
+                    row['symbol'],  # Using symbol as name for now
+                    row['price_usd'],
+                    row['price_usd'] * 1000000,  # Mock market cap
+                    1000000.0  # Mock circulating supply
+                ))
+            
+            con.commit()
+            print(f"Successfully inserted {df.height} sample records into database")
+            return True
+            
+    except Exception as e:
+        print(f"Error creating sample data: {e}")
+        return False
+
+
+def load_saved_ecart_analysis(db_path: str | Path = None, limit: int = 1000) -> pl.DataFrame:
+    """
+    Load previously saved ecart type analysis results from the database.
+    
+    Returns:
+        pl.DataFrame: Saved analysis results
+    """
+    if db_path is None:
+        db_path = Path(__file__).parent.parent / "scraper/component/scraperdb/data/ingestor.db"
+    db_path = Path(db_path)
+    
+    if not db_path.exists():
+        raise FileNotFoundError(f"SQLite DB not found at {db_path}")
+    
+    query = '''
+    SELECT 
+        symbol, timestamp as ts, price_usd, price_change_pct, log_returns,
+        price_volatility_std, log_returns_std, price_change_mean,
+        price_change_zscore, volatility_category, extreme_movement,
+        ecart_type_period, created_at
+    FROM ecart_type_analysis
+    ORDER BY symbol, timestamp
+    LIMIT ?
+    '''
+    
+    try:
+        with sqlite3.connect(str(db_path)) as con:
+            df = pl.read_database(query, con, execute_options={"parameters": [limit]})
+        
+        if df.height > 0:
+            # Ensure proper data types
+            df = df.with_columns([
+                pl.col("ts").str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC"),
+                pl.col("price_usd").cast(pl.Float64),
+                pl.col("price_change_pct").cast(pl.Float64),
+                pl.col("price_volatility_std").cast(pl.Float64),
+                pl.col("extreme_movement").cast(pl.Boolean)
+            ])
+        
+        return df
+        
+    except sqlite3.OperationalError as e:
+        raise sqlite3.OperationalError(f"Database error: {e}")
+
+
+def save_ecart_analysis_to_db(results_df: pl.DataFrame, db_path: str | Path = None) -> bool:
+    """
+    Save ecart type analysis results to the database.
+    
+    Args:
+        results_df: DataFrame containing ecart type analysis results
+        db_path: Path to SQLite database
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    if db_path is None:
+        db_path = Path(__file__).parent.parent / "scraper/component/scraperdb/data/ingestor.db"
+    db_path = Path(db_path)
+    
+    try:
+        with sqlite3.connect(str(db_path)) as con:
+            # Clear existing data (optional - you might want to keep historical data)
+            con.execute("DELETE FROM ecart_type_analysis")
+            
+            # Insert new results
+            for row in results_df.to_dicts():
+                con.execute("""
+                    INSERT INTO ecart_type_analysis (
+                        symbol, timestamp, price_usd, price_change_pct, log_returns,
+                        price_volatility_std, log_returns_std, price_change_mean,
+                        price_change_zscore, volatility_category, extreme_movement,
+                        ecart_type_period, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """, (
+                    row.get('symbol'),
+                    row.get('ts'),
+                    row.get('price_usd'),
+                    row.get('price_change_pct'),
+                    row.get('log_returns'),
+                    row.get('price_volatility_std'),
+                    row.get('log_returns_std'),
+                    row.get('price_change_mean'),
+                    row.get('price_change_zscore'),
+                    row.get('volatility_category'),
+                    row.get('extreme_movement'),
+                    row.get('ecart_type_period')
+                ))
+            
+            con.commit()
+            print(f"Successfully saved {results_df.height} ecart type analysis records to database")
+            return True
+            
+    except Exception as e:
+        print(f"Error saving ecart analysis to database: {e}")
+        return False
+
+
+def process_and_save_ecart_analysis(period: int = 14, limit: int = 1000, db_path: str | Path = None) -> dict:
+    """
+    Process ecart type analysis and save results to database.
+    
+    Returns:
+        dict: Analysis results
+    """
+    try:
+        # Load data from database
+        df = load_data_from_db(db_path, limit)
+        
+        if df.height == 0:
+            return {
+                "success": False,
+                "message": "No data available for analysis",
+                "data": None
+            }
+        
+        # Calculate écart type analysis
+        results_df = build_ecart_type(df, period=period)
+        
+        if results_df.height == 0:
+            return {
+                "success": False,
+                "message": "No analysis results generated",
+                "data": None
+            }
+        
+        # Save results to database
+        saved = save_ecart_analysis_to_db(results_df, db_path)
+        
+        if not saved:
+            print("Warning: Failed to save results to database, but analysis completed")
+        
+        # Generate summary for API response
+        analysis_results = calculate_ecart_type_analysis(period=period, limit=limit, db_path=db_path)
+        
+        print("Ecart type analysis completed successfully")
+        print(f"Analyzed {results_df['symbol'].n_unique()} symbols")
+        print(f"Total records: {results_df.height}")
+        print(f"Results saved to database: {saved}")
+        
+        return analysis_results
+        
+    except Exception as e:
+        print(f"Error processing ecart analysis: {e}")
+        return {
+            "success": False,
+            "message": f"Analysis failed: {str(e)}",
+            "data": None
+        }
+
+
+if __name__ == "__main__":
+    # Test the functions
+    test_ecart_type()
