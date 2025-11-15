@@ -36,7 +36,8 @@
       Tableau de Bord
     </h2>
     
-    <div class="stats-grid">
+    <!-- Brief stats -->
+    <div class="stats-grid brief-stats">
       <mat-card *ngFor="let stat of dashboardStats" class="stat-card" [style.border-left-color]="stat.color">
         <mat-card-content>
           <div class="stat-header">
@@ -53,6 +54,21 @@
           </div>
         </mat-card-content>
       </mat-card>
+    </div>
+
+    <!-- Market Tables Section -->
+    <div class="market-tables-section">
+      <div class="tables-grid">
+        <!-- Top Gainers -->
+        <div class="table-container">
+          <app-top-gainers></app-top-gainers>
+        </div>
+        
+        <!-- Top Losers -->
+        <div class="table-container">
+          <app-top-losers></app-top-losers>
+        </div>
+      </div>
     </div>
   </div>
 

@@ -134,9 +134,7 @@
 }
 
 .gainers-grid, .losers-grid {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 20px;
+  display: block;
   margin-bottom: 20px;
 }
 
@@ -151,6 +149,8 @@
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+  margin: 0 auto;
+  max-width: 100%;
 }
 
 .table {
@@ -161,14 +161,24 @@
 .table th {
   background: #f8f9fa;
   font-weight: 600;
-  text-align: left;
-  padding: 12px;
+  text-align: center;
+  padding: 12px 8px;
   border-bottom: 2px solid #e9ecef;
+  font-size: 14px;
+}
+
+.table th:first-child {
+  text-align: left;
 }
 
 .table td {
-  padding: 12px;
+  padding: 12px 8px;
   border-bottom: 1px solid #e9ecef;
+  text-align: center;
+}
+
+.table td:first-child {
+  text-align: left;
 }
 
 .crypto-info {

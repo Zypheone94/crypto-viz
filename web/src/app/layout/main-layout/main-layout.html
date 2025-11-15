@@ -45,76 +45,165 @@
             </mat-expansion-panel-header>
             
             <div class="filter-options">
-              <!-- Date de début -->
-              <mat-form-field appearance="outline" class="date-field">
-                <mat-label>
-                  <mat-icon>event</mat-icon>
-                  Date de début
-                </mat-label>
-                <input 
-                  matInput 
-                  [matDatepicker]="startDatePicker" 
-                  [(ngModel)]="startDate"
-                  (dateChange)="onStartDateChange($event.value)"
-                  placeholder="Sélectionner la date de début"
-                />
-                <mat-datepicker-toggle matSuffix [for]="startDatePicker"></mat-datepicker-toggle>
-                <mat-datepicker #startDatePicker></mat-datepicker>
-              </mat-form-field>
+              <!-- Période A -->
+              <div class="period-section">
+                <h4 class="period-title">
+                  <mat-icon>timeline</mat-icon>
+                  Période A
+                </h4>
+                
+                <!-- Date de début Période A -->
+                <mat-form-field appearance="outline" class="date-field">
+                  <mat-label>
+                    <mat-icon>event</mat-icon>
+                    Date de début
+                  </mat-label>
+                  <input 
+                    matInput 
+                    [matDatepicker]="startDatePicker" 
+                    [(ngModel)]="startDate"
+                    (dateChange)="onStartDateChange($event.value)"
+                    placeholder="Sélectionner la date de début"
+                  />
+                  <mat-datepicker-toggle matSuffix [for]="startDatePicker"></mat-datepicker-toggle>
+                  <mat-datepicker #startDatePicker></mat-datepicker>
+                </mat-form-field>
 
-              <!-- Date de fin -->
-              <mat-form-field appearance="outline" class="date-field">
-                <mat-label>
-                  <mat-icon>event_available</mat-icon>
-                  Date de fin
-                </mat-label>
-                <input 
-                  matInput 
-                  [matDatepicker]="endDatePicker" 
-                  [(ngModel)]="endDate"
-                  (dateChange)="onEndDateChange($event.value)"
-                  placeholder="Sélectionner la date de fin"
-                />
-                <mat-datepicker-toggle matSuffix [for]="endDatePicker"></mat-datepicker-toggle>
-                <mat-datepicker #endDatePicker></mat-datepicker>
-              </mat-form-field>
+                <!-- Date de fin Période A -->
+                <mat-form-field appearance="outline" class="date-field">
+                  <mat-label>
+                    <mat-icon>event_available</mat-icon>
+                    Date de fin
+                  </mat-label>
+                  <input 
+                    matInput 
+                    [matDatepicker]="endDatePicker" 
+                    [(ngModel)]="endDate"
+                    (dateChange)="onEndDateChange($event.value)"
+                    placeholder="Sélectionner la date de fin"
+                  />
+                  <mat-datepicker-toggle matSuffix [for]="endDatePicker"></mat-datepicker-toggle>
+                  <mat-datepicker #endDatePicker></mat-datepicker>
+                </mat-form-field>
 
-              <!-- Quick Time Range Presets -->
-              <div class="quick-ranges">
-                <h4>Périodes prédéfinies</h4>
-                <div class="range-buttons">
-                  <button 
-                    mat-stroked-button 
-                    class="range-preset-btn"
-                    [class.active]="selectedPreset === '24h'"
-                    (click)="setQuickRange('24h')"
-                  >
-                    24H
-                  </button>
-                  <button 
-                    mat-stroked-button 
-                    class="range-preset-btn"
-                    [class.active]="selectedPreset === '7d'"
-                    (click)="setQuickRange('7d')"
-                  >
-                    7J
-                  </button>
-                  <button 
-                    mat-stroked-button 
-                    class="range-preset-btn"
-                    [class.active]="selectedPreset === '30d'"
-                    (click)="setQuickRange('30d')"
-                  >
-                    30J
-                  </button>
-                  <button 
-                    mat-stroked-button 
-                    class="range-preset-btn"
-                    [class.active]="selectedPreset === '90d'"
-                    (click)="setQuickRange('90d')"
-                  >
-                    3M
-                  </button>
+                <!-- Quick Time Range Presets Période A -->
+                <div class="quick-ranges">
+                  <h5>Périodes prédéfinies A</h5>
+                  <div class="range-buttons">
+                    <button 
+                      mat-stroked-button 
+                      class="range-preset-btn"
+                      [class.active]="selectedPreset === '24h'"
+                      (click)="setQuickRange('24h')"
+                    >
+                      24H
+                    </button>
+                    <button 
+                      mat-stroked-button 
+                      class="range-preset-btn"
+                      [class.active]="selectedPreset === '7d'"
+                      (click)="setQuickRange('7d')"
+                    >
+                      7J
+                    </button>
+                    <button 
+                      mat-stroked-button 
+                      class="range-preset-btn"
+                      [class.active]="selectedPreset === '30d'"
+                      (click)="setQuickRange('30d')"
+                    >
+                      30J
+                    </button>
+                    <button 
+                      mat-stroked-button 
+                      class="range-preset-btn"
+                      [class.active]="selectedPreset === '90d'"
+                      (click)="setQuickRange('90d')"
+                    >
+                      3M
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Période B -->
+              <div class="period-section periode-B">
+                <h4 class="period-title">
+                  <mat-icon>timeline</mat-icon>
+                  Période B
+                </h4>
+                
+                <!-- Date de début Période B -->
+                <mat-form-field appearance="outline" class="date-field">
+                  <mat-label>
+                    <mat-icon>event</mat-icon>
+                    Date de début
+                  </mat-label>
+                  <input 
+                    matInput 
+                    [matDatepicker]="startDatePickerB" 
+                    [(ngModel)]="startDateB"
+                    (dateChange)="onStartDateBChange($event.value)"
+                    placeholder="Sélectionner la date de début"
+                  />
+                  <mat-datepicker-toggle matSuffix [for]="startDatePickerB"></mat-datepicker-toggle>
+                  <mat-datepicker #startDatePickerB></mat-datepicker>
+                </mat-form-field>
+
+                <!-- Date de fin Période B -->
+                <mat-form-field appearance="outline" class="date-field">
+                  <mat-label>
+                    <mat-icon>event_available</mat-icon>
+                    Date de fin
+                  </mat-label>
+                  <input 
+                    matInput 
+                    [matDatepicker]="endDatePickerB" 
+                    [(ngModel)]="endDateB"
+                    (dateChange)="onEndDateBChange($event.value)"
+                    placeholder="Sélectionner la date de fin"
+                  />
+                  <mat-datepicker-toggle matSuffix [for]="endDatePickerB"></mat-datepicker-toggle>
+                  <mat-datepicker #endDatePickerB></mat-datepicker>
+                </mat-form-field>
+
+                <!-- Quick Time Range Presets Période B -->
+                <div class="quick-ranges">
+                  <h5>Périodes prédéfinies B</h5>
+                  <div class="range-buttons">
+                    <button 
+                      mat-stroked-button 
+                      class="range-preset-btn"
+                      [class.active]="selectedPresetB === '24h'"
+                      (click)="setQuickRangeB('24h')"
+                    >
+                      24H
+                    </button>
+                    <button 
+                      mat-stroked-button 
+                      class="range-preset-btn"
+                      [class.active]="selectedPresetB === '7d'"
+                      (click)="setQuickRangeB('7d')"
+                    >
+                      7J
+                    </button>
+                    <button 
+                      mat-stroked-button 
+                      class="range-preset-btn"
+                      [class.active]="selectedPresetB === '30d'"
+                      (click)="setQuickRangeB('30d')"
+                    >
+                      30J
+                    </button>
+                    <button 
+                      mat-stroked-button 
+                      class="range-preset-btn"
+                      [class.active]="selectedPresetB === '90d'"
+                      (click)="setQuickRangeB('90d')"
+                    >
+                      3M
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -256,19 +345,25 @@
               
               <div class="market-stats">
                 <div class="stat-item">
-                  <span class="stat-label">Bitcoin (BTC)</span>
-                  <span class="stat-value">$42,350</span>
-                  <span class="stat-change positive">+2.5%</span>
+                  <span class="stat-label">{{ marketOverview.bitcoin.name }} ({{ marketOverview.bitcoin.symbol }})</span>
+                  <span class="stat-value">${{ formatPrice(marketOverview.bitcoin.price) }}</span>
+                  <span class="stat-change" [class.positive]="marketOverview.bitcoin.changePercent24h > 0" [class.negative]="marketOverview.bitcoin.changePercent24h < 0">
+                    {{ marketOverview.bitcoin.changePercent24h > 0 ? '+' : '' }}{{ marketOverview.bitcoin.changePercent24h }}%
+                  </span>
                 </div>
                 <div class="stat-item">
-                  <span class="stat-label">Ethereum (ETH)</span>
-                  <span class="stat-value">$2,680</span>
-                  <span class="stat-change negative">-1.2%</span>
+                  <span class="stat-label">{{ marketOverview.ethereum.name }} ({{ marketOverview.ethereum.symbol }})</span>
+                  <span class="stat-value">${{ formatPrice(marketOverview.ethereum.price) }}</span>
+                  <span class="stat-change" [class.positive]="marketOverview.ethereum.changePercent24h > 0" [class.negative]="marketOverview.ethereum.changePercent24h < 0">
+                    {{ marketOverview.ethereum.changePercent24h > 0 ? '+' : '' }}{{ marketOverview.ethereum.changePercent24h }}%
+                  </span>
                 </div>
                 <div class="stat-item">
                   <span class="stat-label">Total Market Cap</span>
-                  <span class="stat-value">$1.85T</span>
-                  <span class="stat-change positive">+0.8%</span>
+                  <span class="stat-value">{{ marketOverview.totalMarketCap.value }}</span>
+                  <span class="stat-change" [class.positive]="marketOverview.totalMarketCap.change > 0" [class.negative]="marketOverview.totalMarketCap.change < 0">
+                    {{ marketOverview.totalMarketCap.change > 0 ? '+' : '' }}{{ marketOverview.totalMarketCap.change }}%
+                  </span>
                 </div>
               </div>
             </mat-expansion-panel>
@@ -295,7 +390,7 @@
                 </div>
                 <div class="status-item">
                   <mat-icon class="status-icon active">check_circle</mat-icon>
-                  <span>API (DuckDB)</span>
+                  <span>API (SQLite)</span>
                   <span class="status-badge online">Disponible</span>
                 </div>
               </div>

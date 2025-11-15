@@ -5,6 +5,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Chart, ChartConfiguration, ChartType, registerables } from 'chart.js';
 import { Subscription, interval } from 'rxjs';
+import { ApiService } from '../../../services/api.service';
+import { StoreService } from '../../../services/store.service';
 
 Chart.register(...registerables);
 
@@ -12,6 +14,18 @@ interface RollingStdData {
   timestamp: string;
   value: number;
   label: string;
+}
+
+interface EcartTypeResponse {
+  symbol: string;
+  window_days: number;
+  data: RollingStdData[];
+  stats: {
+    current: number;
+    average: number;
+    max: number;
+    min: number;
+  };
 }
 
 @Component({
@@ -221,6 +235,7 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
   
   private chart: Chart | null = null;
   private subscription: Subscription = new Subscription();
+  private dateRangeSubscription: Subscription = new Subscription();
   
   isLoading = true;
   currentStd = 0;
@@ -229,13 +244,30 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
   minStd = 0;
   avgChangeIcon = 'trending_flat';
   avgChangeClass = '';
+  
+  private ecartTypeData: RollingStdData[] = [];
+  private selectedSymbol = 'BTC'; // Default symbol
+
+  constructor(
+    private apiService: ApiService,
+    private storeService: StoreService
+  ) {}
 
   ngOnInit() {
+    // Subscribe to date range changes
+    this.dateRangeSubscription = this.storeService.dateRange$.subscribe((dateRange) => {
+      if (dateRange.startDate && dateRange.endDate) {
+        this.loadDataForDateRange(dateRange.startDate, dateRange.endDate);
+      } else {
+        this.loadData();
+      }
+    });
+    
     this.loadData();
     
-    // Refresh data every 30 seconds
+    // Refresh data every 5 minutes
     this.subscription.add(
-      interval(30000).subscribe(() => {
+      interval(300000).subscribe(() => {
         this.loadData();
       })
     );
@@ -249,21 +281,57 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
 
   ngOnDestroy() {
     this.subscription.unsubscribe();
+    this.dateRangeSubscription.unsubscribe();
     if (this.chart) {
       this.chart.destroy();
     }
   }
 
   private loadData() {
-    // Simulate loading time
-    setTimeout(() => {
-      this.generateMockData();
-      this.updateChart();
-      this.isLoading = false;
-    }, 1000);
+    this.isLoading = true;
+    
+    this.apiService.getEcartType(this.selectedSymbol).subscribe({
+      next: (response: EcartTypeResponse) => {
+        this.ecartTypeData = response.data || [];
+        this.updateStats(response.stats);
+        this.updateChart();
+        this.isLoading = false;
+      },
+      error: (error) => {
+        console.error('Error loading écart-type data:', error);
+        this.generateMockData();
+        this.updateChart();
+        this.isLoading = false;
+      }
+    });
   }
 
-  private generateMockData(): RollingStdData[] {
+  private loadDataForDateRange(startDate: Date, endDate: Date): void {
+    // For now, we'll load all data and filter client-side
+    // In a real implementation, you might want to pass date range to API
+    this.loadData();
+  }
+
+  private updateStats(stats: any): void {
+    this.currentStd = stats.current || 0;
+    this.avgStd = stats.average || 0;
+    this.maxStd = stats.max || 0;
+    this.minStd = stats.min || 0;
+    
+    // Update trend indicators
+    if (this.currentStd > this.avgStd * 1.1) {
+      this.avgChangeIcon = 'trending_up';
+      this.avgChangeClass = 'warning';
+    } else if (this.currentStd < this.avgStd * 0.9) {
+      this.avgChangeIcon = 'trending_down';
+      this.avgChangeClass = 'success';
+    } else {
+      this.avgChangeIcon = 'trending_flat';
+      this.avgChangeClass = '';
+    }
+  }
+
+  private generateMockData(): void {
     const data: RollingStdData[] = [];
     const now = new Date();
     const baseStd = 2.5; // Base standard deviation percentage
@@ -284,6 +352,8 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
         label: date.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' })
       });
     }
+    
+    this.ecartTypeData = data;
     
     // Calculate statistics
     const values = data.map(d => d.value);
@@ -306,8 +376,6 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
       this.avgChangeIcon = 'trending_flat';
       this.avgChangeClass = '';
     }
-    
-    return data;
   }
 
   private initChart() {
@@ -316,15 +384,15 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
     const ctx = this.chartCanvas.nativeElement.getContext('2d');
     if (!ctx) return;
 
-    const data = this.generateMockData();
+    // Initialize with empty data, will be updated when data loads
 
     const config: ChartConfiguration = {
       type: 'line' as ChartType,
       data: {
-        labels: data.map(d => d.label),
+        labels: this.ecartTypeData.map(d => d.label),
         datasets: [{
-          label: 'Écart-type (%)',
-          data: data.map(d => d.value),
+          label: 'Écart-type glissant (%)',
+          data: this.ecartTypeData.map(d => d.value),
           borderColor: '#ffd700',
           backgroundColor: 'rgba(255, 215, 0, 0.1)',
           borderWidth: 3,
@@ -392,9 +460,8 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
   private updateChart() {
     if (!this.chart) return;
     
-    const data = this.generateMockData();
-    this.chart.data.labels = data.map(d => d.label);
-    this.chart.data.datasets[0].data = data.map(d => d.value);
+    this.chart.data.labels = this.ecartTypeData.map(d => d.label);
+    this.chart.data.datasets[0].data = this.ecartTypeData.map(d => d.value);
     this.chart.update();
   }
 }

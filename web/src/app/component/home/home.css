@@ -83,6 +83,36 @@
   gap: 20px;
 }
 
+.brief-stats {
+  margin-bottom: 32px;
+}
+
+/* Market Tables Section */
+.market-tables-section {
+  margin-top: 32px;
+}
+
+.tables-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.table-container {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+/* Responsive design for market tables */
+@media (max-width: 1024px) {
+  .tables-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
 .stat-card {
   border-left: 4px solid;
   transition: all 0.2s ease;
