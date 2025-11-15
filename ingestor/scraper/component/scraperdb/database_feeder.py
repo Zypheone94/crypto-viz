@@ -13,6 +13,9 @@ from typing import Iterable
 import pandas as pd
 from dotenv import load_dotenv
 
+from ingestor.builder.windowed import main as windowed_main
+from ingestor.builder.delta import main as delta_main
+
 
 LOGGER = logging.getLogger("database_feeder")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -28,6 +31,7 @@ def _resolve(path: Path) -> Path:
 
 
 OUT_DIR = _resolve(Path(os.getenv("OUT_DIR", "../data/clean/parquet")))
+DELTA_PARQUET_DIR = _resolve(Path("../data/metrics/delta"))
 REJECT_DIR = OUT_DIR.parent / "_corrupt"
 RETAIN_DIR = OUT_DIR.parent / "_retained"
 RETAIN_MAX = int(os.getenv("FEEDER_RETAIN_FILES", "5"))
@@ -185,7 +189,7 @@ def ingest_rows(cur: sqlite3.Cursor, rows: Iterable[dict]) -> tuple[int, int]:
     return inserted, 0
 
 
-def process_file(cur: sqlite3.Cursor, path: Path) -> tuple[int, int]:
+def process_file(cur: sqlite3.Cursor, path: Path, process_func) -> tuple[int, int]:
     frame = load_frame(path)
     if frame is None:
         move_to_reject(path)
@@ -198,12 +202,12 @@ def process_file(cur: sqlite3.Cursor, path: Path) -> tuple[int, int]:
         return 0, 0
 
     payload = normalise_frame(frame)
-    inserted, skipped = ingest_rows(cur, payload.to_dict("records"))
-    LOGGER.info("File %s: inserted=%s skipped=%s", path, inserted, skipped)
+    result = process_func(payload)
+    LOGGER.info("File %s: inserted=%s skipped=%s", path, result[0], result[1])
 
     retain_file(path)
 
-    return inserted, skipped
+    return result
 
 
 def run_cycle() -> None:
@@ -221,8 +225,12 @@ def run_cycle() -> None:
         inserted_total = 0
         skipped_total = 0
 
+        def process_with_ingest(payload: pd.DataFrame) -> tuple[int, int]:
+            return ingest_rows(cur, payload.to_dict("records"))
+
         for file_path in files:
-            inserted, skipped = process_file(cur, file_path)
+            inserted, skipped = process_file(cur, file_path, process_with_ingest)
+            inserted_total += inserted
             inserted_total += inserted
             skipped_total += skipped
 
@@ -231,18 +239,36 @@ def run_cycle() -> None:
     finally:
         con.close()
 
+def populate_delta_parquets() -> None:
+    windowed_main()
+    delta_main()
+    populate_delta_table()
+
+def populate_delta_table() -> None:
+    print("ok")
+
 
 def main() -> None:
-    LOGGER.info("Feeder starting with OUT_DIR=%s DB=%s interval=%ss", OUT_DIR, DB_PATH, POLL_SECONDS)
-
+    LOGGER.info(
+        "Feeder starting with OUT_DIR=%s DB=%s interval=%ss",
+        OUT_DIR, DB_PATH, POLL_SECONDS
+    )
+    hour_countdown = 0
     try:
         while True:
             start = time.time()
             run_cycle()
-            duration = time.time() - start
-            sleep_time = max(POLL_SECONDS - duration, 0)
-            if sleep_time:
-                time.sleep(sleep_time)
+            duration = int(time.time() - start)
+            hour_countdown += duration
+
+            for _ in range(POLL_SECONDS):
+                time.sleep(1)
+                hour_countdown += 1
+
+                if hour_countdown >= 15:
+                    populate_delta_parquets()
+                    hour_countdown = 0
+
     except KeyboardInterrupt:
         LOGGER.info("Shutdown requested")
 

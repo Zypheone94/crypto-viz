@@ -8,6 +8,7 @@ env/
 data/raw/*
 !data/clean/.gitkeep
 chk/
+*.parquet
 
 # ---- Artefacts Python ----
 __pycache__/
