@@ -7,6 +7,7 @@ import os
 from dotenv import load_dotenv
 
 from ingestor.scraper.api.routes import symbols
+from ingestor.scraper.api.routes import market_routes
 
 app = FastAPI()
 
@@ -31,6 +32,7 @@ app.add_middleware(Middleware)
 app.include_router(health.router)
 app.include_router(metrics.router)
 app.include_router(symbols.router)
+app.include_router(market_routes.router)
 """
 REMINDER : You must start your api path by : 
 - API (if you do something with the api, health, etc...)
