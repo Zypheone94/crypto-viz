@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS symbol (
 
 cur.execute('''
 CREATE TABLE IF NOT EXISTS delta (
-    id INTEGER PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     symbol TEXT NOT NULL,
     date_start TIMESTAMP,
     date_end DATE,
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS delta (
 
 cur.execute('''
 CREATE TABLE IF NOT EXISTS article (
-    id INTEGER PRIMARY KEY,
+    id TEXT PRIMARY KEY,
     fetched_at TIMESTAMP,
     url TEXT,
     symbol TEXT NOT NULL,
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS article (
 );
 ''')
 
-cur.execute('''
+"""cur.execute('''
         CREATE VIEW ml_features AS
         SELECT
             d.symbol,
@@ -60,7 +60,7 @@ cur.execute('''
          AND a.fetched_at >= d.date_start
          AND a.fetched_at <  d.date_end
         GROUP BY 1,2,3,4,5;
-''')
+''')"""
 
 con.commit()
 

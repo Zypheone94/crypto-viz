@@ -8,9 +8,7 @@ import polars as pl
 from loguru import logger
 
 
-WAREHOUSE_DB = pathlib.Path(
-    os.getenv("WAREHOUSE_DB", "../scraper/component/scraperdb/data/ingestor.db")
-)
+WAREHOUSE_DB = pathlib.Path("ingestor/scraper/component/scraperdb/data/ingestor.db")
 
 
 SOURCE_TABLE = os.getenv("WINDOWED_SOURCE_TABLE", "article")
@@ -185,18 +183,6 @@ def main():
         write_parquet(t1h, "tumbling-1h")
     else:
         logger.info("[windowed] tumbling-1h -> empty")
-
-    t1d = compute_window(lf, every="1d", period="1d")
-    if t1d.height > 0:
-        write_parquet(t1d, "tumbling-1d")
-    else:
-        logger.info("[windowed] tumbling-1d -> empty")
-    s1h30 = compute_window(lf, every="30m", period="1h")
-    if s1h30.height > 0:
-        write_parquet(s1h30, "sliding-1h-step-30m")
-    else:
-        logger.info("[windowed] sliding-1h-step-30m -> empty")
-
 
 if __name__ == "__main__":
     main()
