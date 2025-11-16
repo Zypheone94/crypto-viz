@@ -43,14 +43,14 @@ CREATE TABLE IF NOT EXISTS article (
 ''')
 
 cur.execute('''
-        CREATE OR REPLACE VIEW ml_features AS
+        CREATE VIEW ml_features AS
         SELECT
             d.symbol,
             d.date_start,
             d.date_end,
             d.delta_pct AS target_delta_pct,
             CASE WHEN d.delta_pct > 0 THEN 1 ELSE 0 END AS target_up,
-            COUNT(a.id)                     AS nb_articles,
+            AVG(a.volume_24h) AS avg_volume,
             AVG(a.price)                    AS avg_price,
             AVG(a.market_cap)               AS avg_market_cap,
             AVG(a.coin_circulating)         AS avg_circulating
