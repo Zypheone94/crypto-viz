@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS delta (
 
 cur.execute('''
 CREATE TABLE IF NOT EXISTS article (
-    id INTEGER PRIMARY KEY,
+    id TEXT PRIMARY KEY,
     fetched_at TIMESTAMP,
     url TEXT,
     symbol TEXT NOT NULL,
