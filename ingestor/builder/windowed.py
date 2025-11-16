@@ -143,6 +143,12 @@ def main():
         logger.warning(f"[windowed] nothing to process ({e})")
         return
 
+    t10m = compute_window(lf, every="10m", period="10m")
+    if t10m.height > 0:
+        write_parquet(t10m, "tumbling-10m")
+    else:
+        logger.info("[windowed] tumbling-10m -> empty")
+
     t1h = compute_window(lf, every="1h", period="1h")
     if t1h.height > 0:
         write_parquet(t1h, "tumbling-1h")
