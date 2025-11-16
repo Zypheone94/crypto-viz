@@ -6,9 +6,9 @@ import threading
 import pandas as pd
 
 DELTA_TIME = 15
-ARTICLE_TIME = 5
+ARTICLE_TIME = 60
 
-DB_PATH = Path("data/ingestor.db")
+DB_PATH = Path("ingestor/scraper/component/scraperdb/data/ingestor.db")
 DELTA_PARQUET_DIR = Path("../../../../data/metrics/delta")
 ARTICLE_PARQUET_DIR = Path("../../../../data/clean/parquet").resolve()
 
@@ -41,8 +41,13 @@ def process_feed_article(df: pd.DataFrame) -> None:
     con = db_connect(DB_PATH.absolute())
     if con is None:
         print("Erreur lors de la connexion à la base de donnée")
-
+        return
     cursor = con.cursor()
+
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    tables = cursor.fetchall()
+    print(f"📋 Tables disponibles : {tables}")
+
     for i, row in df.iterrows():
         cursor.execute("SELECT 1 FROM article WHERE id = ?", (row["id"],))
 
@@ -76,6 +81,8 @@ def get_parquets(parquet_path: Path) -> pd.DataFrame | None:
 
 
 def main() -> None:
+    print(DB_PATH.absolute())
+
     thread_articles = threading.Thread(target=countdown, args=(lambda: get_parquets(ARTICLE_PARQUET_DIR), process_feed_article, ARTICLE_TIME))
     #thread_delta = threading.Thread(target=countdown, args=(get_delta_parquets, DELTA_TIME))
 
