@@ -76,13 +76,13 @@ def load_data_from_db(db_path: str | Path = None, limit: int = 1000) -> pl.DataF
     SELECT
         symbol,
         price as price_usd,
-        date as ts,
-        titre as title,
-        source
+        fetched_at as ts,
+        name as title,
+        url as source
     FROM article
     WHERE price IS NOT NULL
       AND symbol IS NOT NULL
-    ORDER BY symbol, date
+    ORDER BY symbol, fetched_at
     LIMIT ?
     '''
 
@@ -95,7 +95,7 @@ def load_data_from_db(db_path: str | Path = None, limit: int = 1000) -> pl.DataF
 
         df = df.with_columns([
             pl.col("price_usd").cast(pl.Float64),
-            pl.col("ts").str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC")
+            pl.col("ts").str.to_datetime(time_zone="UTC")  # ISO format auto-detection
         ])
 
         return df
@@ -243,7 +243,7 @@ def load_saved_ecart_analysis(db_path: str | Path = None, limit: int = 1000) -> 
         
         if df.height > 0:
             df = df.with_columns([
-                pl.col("ts").str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC"),
+                pl.col("ts").str.to_datetime(time_zone="UTC"),  # ISO format auto-detection
                 pl.col("price_usd").cast(pl.Float64),
                 pl.col("price_change_pct").cast(pl.Float64),
                 pl.col("price_volatility_std").cast(pl.Float64),

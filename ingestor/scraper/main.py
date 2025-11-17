@@ -2,9 +2,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes import health, data
 from api.routes.analytics import metrics
+from api.routes import market_route
 from api.utils.middleware import Middleware
 import os
 from dotenv import load_dotenv
+
+from ingestor.scraper.api.routes import symbols
 
 app = FastAPI()
 
@@ -27,8 +30,9 @@ app.add_middleware(
 app.add_middleware(Middleware)
 
 app.include_router(health.router)
-app.include_router(metrics.router)
 app.include_router(data.router)
+app.include_router(metrics.router)
+app.include_router(market_route.router)
 """
 REMINDER : You must start your api path by : 
 - API (if you do something with the api, health, etc...)

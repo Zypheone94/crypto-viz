@@ -2,38 +2,38 @@
 
   <div *ngIf="currentState === componentState.LOADING" class="loading-container">
     <mat-spinner></mat-spinner>
-    <p>Chargement des tendances…</p>
+    <p>Chargement des tendances du marché…</p>
   </div>
 
   <div *ngIf="currentState === componentState.ERROR" class="error-container">
     <p class="error-message">Erreur : {{ errorMessage }}</p>
+    <p>Impossible de charger les données de tendance</p>
   </div>
 
   <div *ngIf="currentState === componentState.EMPTY" class="no-result-container">
-    <p>Aucune source en tendance sur la période.</p>
+    <p>Aucune donnée de tendance disponible pour cette période.</p>
   </div>
 
   <div *ngIf="currentState === componentState.READY" class="data-container">
-    <h2>Trending Now</h2>
+    <h2 class="trending-title">
+      <mat-icon class="title-icon">trending_up</mat-icon>
+      Tendances du Marché
+    </h2>
 
     <table class="table">
       <thead>
       <tr>
-        <th>Source</th>
-        <th>Actuel</th>
-        <th>Réf</th>
-        <th>Δ</th>
-        <th>Δ %</th>
+        <th>Symbole</th>
+        <th>Prix Actuel</th>
+        <th>Variation 24h</th>
         <th>Tendance</th>
       </tr>
       </thead>
       <tbody>
       <tr *ngFor="let it of data | slice:0:limit">
-        <td>{{ it.source }}</td>
-        <td>{{ it.value }}</td>
-        <td>{{ it.prev }}</td>
-        <td [ngClass]="trendClass(it)">{{ it.delta }}</td>
-        <td [ngClass]="trendClass(it)">{{ (it.delta_pct * 100) | number : '1.0-1' }}%</td>
+        <td><strong>{{ it.source }}</strong></td>
+        <td>{{ it.value | currency:'USD':'symbol':'1.2-2' }}</td>
+        <td [ngClass]="trendClass(it)">{{ (it.delta_pct * 100) | number:'1.2-2' }}%</td>
         <td [ngClass]="trendClass(it)" [attr.aria-label]="(it.delta_pct*100) + '%'">
           {{ trendArrow(it) }}
         </td>
@@ -41,7 +41,7 @@
       </tbody>
     </table>
 
-    <div style="height: 360px; margin-top: 12px;">
+    <div class="chart-container">
       <canvas
         baseChart
         [type]="'bar'"

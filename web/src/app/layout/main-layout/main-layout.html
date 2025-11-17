@@ -3,8 +3,8 @@
   <header class="header small-header">
     <div class="header-left">
       <div class="logo">
-        <span class="logo-icon">🚀</span>
-        <h1 class="app-title">Mon App</h1>
+        <span class="logo-icon">₿</span>
+        <h1 class="app-title">CryptoViz</h1>
       </div>
 
       <!-- Navigation -->
@@ -16,7 +16,7 @@
           class="nav-link"
           (click)="onNavClick(item.route)"
         >
-          <span class="nav-icon">{{ item.icon }}</span>
+          <mat-icon class="nav-icon">{{ item.icon }}</mat-icon>
           <span class="nav-text">{{ item.label }}</span>
         </a>
       </nav>
@@ -27,86 +27,351 @@
     <!-- Sidebar toujours affichée -->
     <aside class="filters-sidebar">
       <div class="sidebar-header">
-        <h3>🎛️ Options</h3>
+        <h3>
+          <mat-icon>settings</mat-icon>
+          Options
+        </h3>
       </div>
 
       <div class="filters-content">
         <!-- Contenu spécifique à Analytics -->
-        <ng-container *ngIf="selectedTab === 'analytics'; else emptySidebar">
-          <mat-expansion-panel *ngFor="let period of periods" class="periode-{{ period.key }}">
+        <ng-container *ngIf="selectedTab === 'analytics'">
+          <mat-expansion-panel class="filter-panel" expanded="true">
             <mat-expansion-panel-header>
-              <mat-panel-title>📅 {{ period.label }}</mat-panel-title>
+              <mat-panel-title>
+                <mat-icon>tune</mat-icon>
+                Filtres d'analyse
+              </mat-panel-title>
             </mat-expansion-panel-header>
+            
             <div class="filter-options">
-              <label class="radio-option">
-                <input
-                  type="radio"
-                  name="dateRange {{ period.key }}"
-                  value="last-7-days"
-                  (click)="updateFilter(period.key, '1h')"
-                />
-                <span class="radio-custom"></span>
-                <span class="option-text">Dernière heure</span>
-              </label>
-              <label class="radio-option">
-                <input
-                  type="radio"
-                  name="dateRange {{ period.key }}"
-                  value="last-30-days"
-                  (click)="updateFilter(period.key, '1d')"
-                />
-                <span class="radio-custom"></span>
-                <span class="option-text">Dernier jour</span>
-              </label>
-              <label class="radio-option">
-                <input
-                  type="radio"
-                  name="dateRange {{ period.key }}"
-                  value="last-3-months"
-                  (click)="updateFilter(period.key, '3d')"
-                />
-                <span class="radio-custom"></span>
-                <span class="option-text">3 derniers jours</span>
-              </label>
+              <!-- Période A -->
+              <div class="period-section">
+                <h4 class="period-title">
+                  <mat-icon>timeline</mat-icon>
+                  Période A
+                </h4>
+                
+                <!-- Date de début Période A -->
+                <mat-form-field appearance="outline" class="date-field">
+                  <mat-label>
+                    <mat-icon>event</mat-icon>
+                    Date de début
+                  </mat-label>
+                  <input 
+                    matInput 
+                    [matDatepicker]="startDatePicker" 
+                    [(ngModel)]="startDate"
+                    (dateChange)="onStartDateChange($event.value)"
+                    placeholder="Sélectionner la date de début"
+                  />
+                  <mat-datepicker-toggle matSuffix [for]="startDatePicker"></mat-datepicker-toggle>
+                  <mat-datepicker #startDatePicker></mat-datepicker>
+                </mat-form-field>
 
-              <!-- Période personnalisée -->
-              <label class="radio-option">
-                <input
-                  type="radio"
-                  name="dateRange {{ period.key }}"
-                  value="custom"
-                  (click)="handleDisplayCustomFields(period.key)"
-                />
-                <span class="radio-custom"></span>
-                <span class="option-text">Choisir une période</span>
-              </label>
-              <div *ngIf="displayCustomFields[period.key]" class="custom-date-range">
-                <div (change)="updateCustomFilter(period.key)">
-                  <input
-                    type="date"
-                    [(ngModel)]="customDateValues[period.key].from"
-                    [name]="'customFrom' + period.key"
+                <!-- Date de fin Période A -->
+                <mat-form-field appearance="outline" class="date-field">
+                  <mat-label>
+                    <mat-icon>event_available</mat-icon>
+                    Date de fin
+                  </mat-label>
+                  <input 
+                    matInput 
+                    [matDatepicker]="endDatePicker" 
+                    [(ngModel)]="endDate"
+                    (dateChange)="onEndDateChange($event.value)"
+                    placeholder="Sélectionner la date de fin"
                   />
-                  <span>→</span>
-                  <input
-                    type="date"
-                    [(ngModel)]="customDateValues[period.key].to"
-                    [name]="'customTo' + period.key"
-                  />
-                </div>
+                  <mat-datepicker-toggle matSuffix [for]="endDatePicker"></mat-datepicker-toggle>
+                  <mat-datepicker #endDatePicker></mat-datepicker>
+                </mat-form-field>
+               
               </div>
+
+              <!-- Période B -->
+              <div class="period-section periode-B">
+                <h4 class="period-title">
+                  <mat-icon>timeline</mat-icon>
+                  Période B
+                </h4>
+                
+                <!-- Date de début Période B -->
+                <mat-form-field appearance="outline" class="date-field">
+                  <mat-label>
+                    <mat-icon>event</mat-icon>
+                    Date de début
+                  </mat-label>
+                  <input 
+                    matInput 
+                    [matDatepicker]="startDatePickerB" 
+                    [(ngModel)]="startDateB"
+                    (dateChange)="onStartDateBChange($event.value)"
+                    placeholder="Sélectionner la date de début"
+                  />
+                  <mat-datepicker-toggle matSuffix [for]="startDatePickerB"></mat-datepicker-toggle>
+                  <mat-datepicker #startDatePickerB></mat-datepicker>
+                </mat-form-field>
+
+                <!-- Date de fin Période B -->
+                <mat-form-field appearance="outline" class="date-field">
+                  <mat-label>
+                    <mat-icon>event_available</mat-icon>
+                    Date de fin
+                  </mat-label>
+                  <input 
+                    matInput 
+                    [matDatepicker]="endDatePickerB" 
+                    [(ngModel)]="endDateB"
+                    (dateChange)="onEndDateBChange($event.value)"
+                    placeholder="Sélectionner la date de fin"
+                  />
+                  <mat-datepicker-toggle matSuffix [for]="endDatePickerB"></mat-datepicker-toggle>
+                  <mat-datepicker #endDatePickerB></mat-datepicker>
+                </mat-form-field>
+              </div>
+
+            </div>
+
+            <div class="filter-actions">
+              <button mat-stroked-button class="reset-btn" (click)="resetFilters()">
+                <mat-icon>refresh</mat-icon>
+                Réinitialiser
+              </button>
             </div>
           </mat-expansion-panel>
+        </ng-container>
 
-          <div class="filter-actions">
-            <button class="reset-btn" (click)="resetFilters()">🔄 Réinitialiser</button>
+        <!-- Contenu spécifique aux News -->
+        <ng-container *ngIf="selectedTab === 'news'">
+          <div class="news-controls">
+            <!-- Filtres de news -->
+            <mat-expansion-panel class="filter-panel" expanded="true">
+              <mat-expansion-panel-header>
+                <mat-panel-title>
+                  <mat-icon>filter_list</mat-icon>
+                  Filtres d'actualités
+                </mat-panel-title>
+              </mat-expansion-panel-header>
+              
+              <div class="filter-options">
+                <!-- Section Filter -->
+                <mat-form-field appearance="outline" class="section-field">
+                  <mat-label>
+                    <mat-icon>category</mat-icon>
+                    Section
+                  </mat-label>
+                  <mat-select [(ngModel)]="newsFilters.section" (selectionChange)="onNewsFilterChange()">
+                    <mat-option value="all">Toutes les sections</mat-option>
+                    <mat-option value="latest-crypto-news">Actualités crypto</mat-option>
+                    <mat-option value="markets">Marchés</mat-option>
+                    <mat-option value="business">Business</mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                <!-- Date Range -->
+                <mat-form-field appearance="outline" class="date-field">
+                  <mat-label>
+                    <mat-icon>date_range</mat-icon>
+                    Période
+                  </mat-label>
+                  <mat-select [(ngModel)]="newsFilters.dateRange" (selectionChange)="onNewsFilterChange()">
+                    <mat-option value="today">Aujourd'hui</mat-option>
+                    <mat-option value="week">Cette semaine</mat-option>
+                    <mat-option value="month">Ce mois</mat-option>
+                    <mat-option value="all">Toutes les dates</mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                <!-- Search -->
+                <mat-form-field appearance="outline" class="search-field">
+                  <mat-label>
+                    <mat-icon>search</mat-icon>
+                    Rechercher
+                  </mat-label>
+                  <input matInput [(ngModel)]="newsFilters.searchTerm" (input)="onNewsFilterChange()" placeholder="Mots-clés...">
+                  <mat-icon matSuffix>search</mat-icon>
+                </mat-form-field>
+              </div>
+
+              <div class="filter-actions">
+                <button mat-stroked-button class="reset-btn" (click)="resetNewsFilters()">
+                  <mat-icon>refresh</mat-icon>
+                  Réinitialiser
+                </button>
+              </div>
+            </mat-expansion-panel>
+
+            <!-- News Stats -->
+            <mat-expansion-panel class="control-panel">
+              <mat-expansion-panel-header>
+                <mat-panel-title>
+                  <mat-icon>analytics</mat-icon>
+                  Statistiques
+                </mat-panel-title>
+              </mat-expansion-panel-header>
+              
+              <div class="news-stats">
+                <div class="stat-item">
+                  <span class="stat-label">Total articles</span>
+                  <span class="stat-value">{{ totalNewsCount }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Aujourd'hui</span>
+                  <span class="stat-value">{{ todayNewsCount }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Dernière mise à jour</span>
+                  <span class="stat-value">{{ lastUpdateTime }}</span>
+                </div>
+              </div>
+            </mat-expansion-panel>
+
+            <!-- Quick Actions -->
+            <mat-expansion-panel class="control-panel">
+              <mat-expansion-panel-header>
+                <mat-panel-title>
+                  <mat-icon>flash_on</mat-icon>
+                  Actions rapides
+                </mat-panel-title>
+              </mat-expansion-panel-header>
+              
+              <div class="quick-actions">
+                <button mat-raised-button color="primary" class="action-btn" (click)="refreshNews()">
+                  <mat-icon>refresh</mat-icon>
+                  Actualiser
+                </button>
+                <!-- <button mat-stroked-button class="action-btn">
+                  <mat-icon>bookmark</mat-icon>
+                  Favoris
+                </button>
+                <button mat-stroked-button class="action-btn">
+                  <mat-icon>share</mat-icon>
+                  Partager
+                </button> -->
+              </div>
+            </mat-expansion-panel>
           </div>
         </ng-container>
 
-        <!-- Contenu vide ou placeholder -->
-        <ng-template #emptySidebar>
-          <p class="placeholder">Aucun filtre disponible pour cette page.</p>
-        </ng-template>
+        <!-- Contenu par défaut pour les autres pages -->
+        <ng-container *ngIf="selectedTab !== 'analytics' && selectedTab !== 'news'">
+          <div class="dashboard-controls">
+            <!-- Market Overview Section -->
+            <mat-expansion-panel class="control-panel" expanded="true">
+              <mat-expansion-panel-header>
+                <mat-panel-title>
+                  <mat-icon>assessment</mat-icon>
+                  Aperçu du marché
+                </mat-panel-title>
+              </mat-expansion-panel-header>
+              
+              <div class="market-stats">
+                <div class="stat-item">
+                  <span class="stat-label">{{ marketOverview.bitcoin.name }} ({{ marketOverview.bitcoin.symbol }})</span>
+                  <span class="stat-value">${{ formatPrice(marketOverview.bitcoin.price) }}</span>
+                  <span class="stat-change" [class.positive]="marketOverview.bitcoin.changePercent24h > 0" [class.negative]="marketOverview.bitcoin.changePercent24h < 0">
+                    {{ marketOverview.bitcoin.changePercent24h > 0 ? '+' : '' }}{{ marketOverview.bitcoin.changePercent24h }}%
+                  </span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">{{ marketOverview.ethereum.name }} ({{ marketOverview.ethereum.symbol }})</span>
+                  <span class="stat-value">${{ formatPrice(marketOverview.ethereum.price) }}</span>
+                  <span class="stat-change" [class.positive]="marketOverview.ethereum.changePercent24h > 0" [class.negative]="marketOverview.ethereum.changePercent24h < 0">
+                    {{ marketOverview.ethereum.changePercent24h > 0 ? '+' : '' }}{{ marketOverview.ethereum.changePercent24h }}%
+                  </span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Total Market Cap</span>
+                  <span class="stat-value">{{ marketOverview.totalMarketCap.value }}</span>
+                  <span class="stat-change" [class.positive]="marketOverview.totalMarketCap.change > 0" [class.negative]="marketOverview.totalMarketCap.change < 0">
+                    {{ marketOverview.totalMarketCap.change > 0 ? '+' : '' }}{{ marketOverview.totalMarketCap.change }}%
+                  </span>
+                </div>
+              </div>
+            </mat-expansion-panel>
+
+            <!-- Data Pipeline Status -->
+            <mat-expansion-panel class="control-panel">
+              <mat-expansion-panel-header>
+                <mat-panel-title>
+                  <mat-icon>data_usage</mat-icon>
+                  Pipeline Status
+                </mat-panel-title>
+              </mat-expansion-panel-header>
+              
+              <div class="pipeline-status">
+                <div class="status-item">
+                  <mat-icon class="status-icon active">check_circle</mat-icon>
+                  <span>Scraper</span>
+                  <span class="status-badge online">En ligne</span>
+                </div>
+                <div class="status-item">
+                  <mat-icon class="status-icon active">check_circle</mat-icon>
+                  <span>Builder (Spark)</span>
+                  <span class="status-badge online">Actif</span>
+                </div>
+                <div class="status-item">
+                  <mat-icon class="status-icon active">check_circle</mat-icon>
+                  <span>API (SQLite)</span>
+                  <span class="status-badge online">Disponible</span>
+                </div>
+              </div>
+            </mat-expansion-panel>
+
+            <!-- Quick Actions -->
+            <mat-expansion-panel class="control-panel">
+              <mat-expansion-panel-header>
+                <mat-panel-title>
+                  <mat-icon>flash_on</mat-icon>
+                  Actions rapides
+                </mat-panel-title>
+              </mat-expansion-panel-header>
+              
+              <div class="quick-actions">
+                <button mat-raised-button color="primary" class="action-btn">
+                  <mat-icon>refresh</mat-icon>
+                  Actualiser données
+                </button>
+                <button mat-stroked-button class="action-btn">
+                  <mat-icon>download</mat-icon>
+                  Exporter CSV
+                </button>
+                <!-- <button mat-stroked-button class="action-btn">
+                  <mat-icon>settings</mat-icon>
+                  Paramètres
+                </button> -->
+              </div>
+            </mat-expansion-panel>
+
+            <!-- Data Sources -->
+            <mat-expansion-panel class="control-panel">
+              <mat-expansion-panel-header>
+                <mat-panel-title>
+                  <mat-icon>rss_feed</mat-icon>
+                  Sources de données
+                </mat-panel-title>
+              </mat-expansion-panel-header>
+              
+              <div class="data-sources">
+                <div class="source-item">
+                  <mat-slide-toggle checked="true"></mat-slide-toggle>
+                  <span>CoinGecko API</span>
+                  <mat-icon class="source-status active">fiber_manual_record</mat-icon>
+                </div>
+                <div class="source-item">
+                  <mat-slide-toggle checked="true"></mat-slide-toggle>
+                  <span>RSS Crypto News</span>
+                  <mat-icon class="source-status active">fiber_manual_record</mat-icon>
+                </div>
+                <div class="source-item">
+                  <mat-slide-toggle checked="false"></mat-slide-toggle>
+                  <span>Social Sentiment</span>
+                  <mat-icon class="source-status inactive">fiber_manual_record</mat-icon>
+                </div>
+              </div>
+            </mat-expansion-panel>
+          </div>
+        </ng-container>
       </div>
     </aside>
 

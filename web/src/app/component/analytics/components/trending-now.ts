@@ -1,6 +1,7 @@
 ﻿import { Component, Input, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatIconModule } from '@angular/material/icon';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration, ChartOptions } from 'chart.js';
 
@@ -12,8 +13,115 @@ import { Subscription, timer } from 'rxjs';
 @Component({
   selector: 'app-trending-now',
   standalone: true,
-  imports: [CommonModule, MatProgressSpinnerModule, BaseChartDirective],
+  imports: [CommonModule, MatProgressSpinnerModule, MatIconModule, BaseChartDirective],
   templateUrl: 'trending-now.html',
+  styleUrls: ['./time-series.css'],
+  styles: [`
+    .trending-now {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      border: 1px solid #e0e0e0;
+    }
+
+    .trending-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0 0 1.5rem 0;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .title-icon {
+      color: #4CAF50;
+    }
+
+    .loading-container, .error-container, .no-result-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      gap: 1rem;
+    }
+
+    .error-message {
+      color: #d32f2f;
+      font-weight: 500;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 1.5rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .table th {
+      background: #f1f5f9;
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+      color: #374151;
+      border-bottom: 2px solid #e2e8f0;
+    }
+
+    .table td {
+      padding: 12px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #4b5563;
+    }
+
+    .table tbody tr:hover {
+      background: #f8fafc;
+    }
+
+    .chart-container {
+      height: 360px;
+      margin-top: 1rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+
+    .trend-up {
+      color: #00c853;
+      font-weight: 600;
+    }
+
+    .trend-down {
+      color: #d32f2f;
+      font-weight: 600;
+    }
+
+    .trend-flat {
+      color: #666666;
+      font-weight: 500;
+    }
+
+    @media (max-width: 768px) {
+      .trending-now {
+        padding: 1rem;
+      }
+      
+      .chart-container {
+        height: 300px;
+      }
+      
+      .table {
+        font-size: 0.875rem;
+      }
+      
+      .table th, .table td {
+        padding: 8px;
+      }
+    }
+  `]
 })
 export class TrendingNowComponent implements OnInit, OnDestroy {
   componentState = ComponentState;
@@ -45,23 +153,69 @@ export class TrendingNowComponent implements OnInit, OnDestroy {
     responsive: true,
     maintainAspectRatio: false,
     scales: {
-      x: { ticks: { autoSkip: false } },
+      x: { 
+        ticks: { 
+          autoSkip: false,
+          color: '#666',
+          font: {
+            size: 12,
+            weight: 'normal'
+          }
+        },
+        grid: {
+          display: false
+        }
+      },
       y: {
-        title: { display: true, text: 'Δ %' },
+        title: { 
+          display: true, 
+          text: 'Variation %',
+          color: '#374151',
+          font: {
+            size: 14,
+            weight: 'bold'
+          }
+        },
         beginAtZero: true,
+        ticks: {
+          color: '#666',
+          callback: function(value) {
+            return value + '%';
+          }
+        },
+        grid: {
+          color: 'rgba(0, 0, 0, 0.1)',
+          lineWidth: 1
+        }
       },
     },
     plugins: {
-      legend: { display: true },
+      legend: { 
+        display: false 
+      },
       tooltip: {
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        titleColor: '#fff',
+        bodyColor: '#fff',
+        borderColor: '#ffd700',
+        borderWidth: 1,
+        cornerRadius: 8,
+        displayColors: true,
         callbacks: {
           label: (ctx) => {
             const val = ctx.raw as number;
-            return `Δ %: ${val.toFixed(1)}%`;
+            const symbol = ctx.label;
+            return `${symbol}: ${val.toFixed(2)}%`;
           },
         },
       },
     },
+    elements: {
+      bar: {
+        borderRadius: 4,
+        borderSkipped: false,
+      }
+    }
   };
 
   constructor(private api: ApiService) {}
