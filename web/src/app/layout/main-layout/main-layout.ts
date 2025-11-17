@@ -318,12 +318,10 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   private loadMarketData(): void {
     // Fetch market overview data from API
     this.apiService.getMarketOverview().subscribe({
-      next: (response: any) => {
-        if (response && response.response && response.response.data) {
-          const data = response.response.data;
+      next: (data: any) => {
+        if (data) {
           const cryptos = data.major_cryptos || [];
           
-          // Find BTC and ETH from the response
           const btcData = cryptos.find((crypto: any) => crypto.symbol === 'BTC');
           const ethData = cryptos.find((crypto: any) => crypto.symbol === 'ETH');
           
@@ -331,14 +329,14 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
             bitcoin: {
               symbol: btcData?.symbol || 'BTC',
               name: btcData?.name || 'Bitcoin',
-              price: btcData ? parseFloat(btcData.price.replace(/[$,]/g, '')) : 0,
+              price: btcData ? parseFloat(String(btcData.price).replace(/[$,]/g, '')) : 0,
               change24h: btcData?.change_24h_value || 0,
               changePercent24h: btcData?.change_24h_value || 0
             },
             ethereum: {
               symbol: ethData?.symbol || 'ETH',
               name: ethData?.name || 'Ethereum',
-              price: ethData ? parseFloat(ethData.price.replace(/[$,]/g, '')) : 0,
+              price: ethData ? parseFloat(String(ethData.price).replace(/[$,]/g, '')) : 0,
               change24h: ethData?.change_24h_value || 0,
               changePercent24h: ethData?.change_24h_value || 0
             },
@@ -347,35 +345,38 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
               change: data.market_cap_change_value || 0
             }
           };
-          
-          console.log('Market data loaded successfully:', this.marketOverview);
+        } else {
+          this.marketOverview = this.getEmptyMarketOverview();
         }
       },
       error: (error: any) => {
         console.error('Error loading market data:', error);
-        // Fallback to mock data if API fails
-        this.marketOverview = {
-          bitcoin: {
-            symbol: 'BTC',
-            name: 'Bitcoin',
-            price: 42350,
-            change24h: 1035,
-            changePercent24h: 2.5
-          },
-          ethereum: {
-            symbol: 'ETH',
-            name: 'Ethereum',
-            price: 2680,
-            change24h: -32.6,
-            changePercent24h: -1.2
-          },
-          totalMarketCap: {
-            value: '$1.85T',
-            change: 0.8
-          }
-        };
+        this.marketOverview = this.getEmptyMarketOverview();
       }
     });
+  }
+
+  private getEmptyMarketOverview(): MarketOverview {
+    return {
+      bitcoin: {
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        price: 0,
+        change24h: 0,
+        changePercent24h: 0
+      },
+      ethereum: {
+        symbol: 'ETH',
+        name: 'Ethereum',
+        price: 0,
+        change24h: 0,
+        changePercent24h: 0
+      },
+      totalMarketCap: {
+        value: '$0.00T',
+        change: 0
+      }
+    };
   }
 
   formatPrice(price: number): string {

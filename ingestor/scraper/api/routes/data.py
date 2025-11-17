@@ -233,9 +233,9 @@ async def get_symbol_ecart_type_analysis(
         SELECT
             symbol,
             price as price_usd,
-            date as ts,
-            titre as title,
-            source
+            fetched_at as ts,
+            name as title,
+            url as source
         FROM article
         WHERE price IS NOT NULL
           AND symbol IS NOT NULL
@@ -245,14 +245,14 @@ async def get_symbol_ecart_type_analysis(
         
         # Add date range filters
         if date_from:
-            query += " AND date >= ?"
+            query += " AND DATE(fetched_at) >= ?"
             params.append(date_from)
         
         if date_to:
-            query += " AND date <= ?"
+            query += " AND DATE(fetched_at) <= ?"
             params.append(date_to)
         
-        query += " ORDER BY date LIMIT ?"
+        query += " ORDER BY fetched_at LIMIT ?"
         params.append(limit)
         
         # Load filtered data
@@ -465,9 +465,9 @@ async def get_rsi_analysis(
         SELECT
             symbol,
             price as price_usd,
-            date as ts,
-            titre as title,
-            source
+            fetched_at as ts,
+            name as title,
+            url as source
         FROM article
         WHERE price IS NOT NULL
           AND symbol IS NOT NULL
@@ -478,14 +478,14 @@ async def get_rsi_analysis(
             query_params.append(symbol.upper())
         
         if date_from:
-            query_conditions.append("AND date >= ?")
+            query_conditions.append("AND DATE(fetched_at) >= ?")
             query_params.append(date_from)
         
         if date_to:
-            query_conditions.append("AND date <= ?")
+            query_conditions.append("AND DATE(fetched_at) <= ?")
             query_params.append(date_to)
         
-        final_query = base_query + " " + " ".join(query_conditions) + " ORDER BY symbol, date LIMIT ?"
+        final_query = base_query + " " + " ".join(query_conditions) + " ORDER BY symbol, fetched_at LIMIT ?"
         query_params.append(limit)
         
         with sqlite3.connect(str(db_path)) as con:
@@ -623,23 +623,23 @@ async def get_symbol_rsi_analysis(
         SELECT
             symbol,
             price as price_usd,
-            date as ts,
-            titre as title,
-            source
+            fetched_at as ts,
+            name as title,
+            url as source
         FROM article
         WHERE price IS NOT NULL
           AND symbol IS NOT NULL
         '''
         
         if date_from:
-            query_conditions.append("AND date >= ?")
+            query_conditions.append("AND DATE(fetched_at) >= ?")
             query_params.append(date_from)
         
         if date_to:
-            query_conditions.append("AND date <= ?")
+            query_conditions.append("AND DATE(fetched_at) <= ?")
             query_params.append(date_to)
         
-        final_query = base_query + " " + " ".join(query_conditions) + " ORDER BY date LIMIT ?"
+        final_query = base_query + " " + " ".join(query_conditions) + " ORDER BY fetched_at LIMIT ?"
         query_params.append(limit)
         
         with sqlite3.connect(str(db_path)) as con:

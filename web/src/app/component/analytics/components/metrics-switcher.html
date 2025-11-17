@@ -1,4 +1,5 @@
 ﻿<div class="switcher">
+
   <button
     class="tab"
     [class.active]="view === 'timeseries'"
@@ -15,39 +16,45 @@
     Trending Now
   </button>
 
-
   <button
-   class="tab"
-   [class.active]="view === 'ecartTypeGlissant'"
-   (click)="select('ecartTypeGlissant')">
-   <mat-icon>trending_down</mat-icon>
-   Écart-type glissant
+    class="tab"
+    [class.active]="view === 'ecartTypeGlissant'"
+    (click)="select('ecartTypeGlissant')">
+    <mat-icon>trending_down</mat-icon>
+    Écart-type glissant
   </button>
 
   <button
-   class="tab"
-   [class.active]="view === 'rsi'"
-   (click)="select('rsi')">
-   <mat-icon>show_chart</mat-icon>
-   RSI
+    class="tab"
+    [class.active]="view === 'rsi'"
+    (click)="select('rsi')">
+    <mat-icon>show_chart</mat-icon>
+    RSI
   </button>
 
 </div>
 
+
 <div class="panel">
-  <app-time-series *ngIf="view === 'timeseries'"></app-time-series>
+
+  <app-time-series
+    *ngIf="view === 'timeseries'">
+  </app-time-series>
 
   <app-trending-now
     *ngIf="view === 'trending'"
-    [window]="'1h'"
-    [baseline]="'24h'"
+    window="1h"
+    baseline="24h"
     [limit]="5"
     [autoRefreshSec]="60">
   </app-trending-now>
 
+  <app-ecart-type-glissant
+    *ngIf="view === 'ecartTypeGlissant'">
+  </app-ecart-type-glissant>
 
+  <app-rsi
+    *ngIf="view === 'rsi'">
+  </app-rsi>
 
-  <app-ecart-type-glissant *ngIf="view === 'ecartTypeGlissant'"></app-ecart-type-glissant>
-
-  <app-rsi *ngIf="view === 'rsi'"></app-rsi>
 </div>

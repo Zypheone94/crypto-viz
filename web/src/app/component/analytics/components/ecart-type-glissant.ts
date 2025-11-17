@@ -9,7 +9,6 @@ import { FormsModule } from '@angular/forms';
 import { Chart, ChartConfiguration, ChartType, registerables } from 'chart.js';
 import { Subscription, interval } from 'rxjs';
 import { ApiService } from '../../../services/api.service';
-import { StoreService } from '../../../services/store.service';
 
 Chart.register(...registerables);
 
@@ -272,7 +271,7 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
   avgChangeClass = '';
   
   private ecartTypeData: RollingStdData[] = [];
-  selectedSymbol = 'ADA'; // Default symbol - public for template binding
+  selectedSymbol = 'BTC'; // Default symbol - public for template binding
 
   constructor(
     private apiService: ApiService
@@ -304,10 +303,9 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
   }
 
   ngAfterViewInit() {
-    // Initialize chart if we have data and no chart exists yet
-    if (!this.chart && this.chartCanvas && this.ecartTypeData.length > 0) {
+    if (this.ecartTypeData.length > 0) {
       console.log('Initializing chart from ngAfterViewInit');
-      this.initChart();
+      this.scheduleChartRender();
     }
   }
 
@@ -341,11 +339,12 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
     this.apiService.getEcartType(symbol, params).subscribe({
       next: (response: any) => {
         console.log('Écart-type API response:', response);
+        const payload = response || {};
         
         // Handle API response structure - check for time_series first (symbol-specific endpoint)
-        if (response?.response?.time_series && Array.isArray(response.response.time_series)) {
+        if (payload.time_series && Array.isArray(payload.time_series)) {
           // Symbol-specific endpoint returns time_series data
-          const timeSeries = response.response.time_series;
+          const timeSeries = payload.time_series;
           console.log('Processing time_series with', timeSeries.length, 'items');
           
           this.ecartTypeData = timeSeries
@@ -372,13 +371,13 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
             this.updateStats(stats);
             
             // Override with latest_stats if available
-            if (response.response.latest_stats && response.response.latest_stats.price_volatility_std != null) {
-              this.currentStd = Number(response.response.latest_stats.price_volatility_std.toFixed(3));
+            if (payload.latest_stats && payload.latest_stats.price_volatility_std != null) {
+              this.currentStd = Number(payload.latest_stats.price_volatility_std.toFixed(3));
             }
           }
-        } else if (response?.response?.detailed_results && Array.isArray(response.response.detailed_results)) {
+        } else if (payload.detailed_results && Array.isArray(payload.detailed_results)) {
           // General endpoint returns detailed_results
-          const detailedResults = response.response.detailed_results;
+          const detailedResults = payload.detailed_results;
           console.log('Processing detailed_results with', detailedResults.length, 'items');
           
           this.ecartTypeData = detailedResults
@@ -402,10 +401,9 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
             };
             this.updateStats(stats);
           }
-        } else if (response?.response?.latest_data && Array.isArray(response.response.latest_data)) {
+        } else if (payload.latest_data && Array.isArray(payload.latest_data)) {
           // If no detailed results, use latest_data and summary for basic stats
-          const latestData = response.response.latest_data;
-          const summary = response.response.summary || [];
+          const latestData = payload.latest_data;
           
           // Generate basic time series from available data
           this.ecartTypeData = latestData.map((item: any, index: number) => ({
@@ -424,23 +422,18 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
             };
             this.updateStats(stats);
           }
-        } else if (response?.data) {
+        } else if (payload.data) {
           // Mock data structure fallback
-          this.ecartTypeData = response.data || [];
-          this.updateStats(response.stats || {});
+          this.ecartTypeData = payload.data || [];
+          this.updateStats(payload.stats || {});
         } else {
           console.warn('No valid data structure in API response:', response);
           this.ecartTypeData = [];
           this.updateStats({ current: 0, average: 0, max: 0, min: 0 });
         }
         
-        // Initialize chart immediately
-        if (!this.chart && this.chartCanvas && this.ecartTypeData.length > 0) {
-          this.initChart();
-        } else if (this.chart && this.ecartTypeData.length > 0) {
-          this.updateChart();
-        }
         this.isLoading = false;
+        this.scheduleChartRender();
       },
       error: (error) => {
         console.error('Error loading écart-type data:', error);
@@ -477,6 +470,26 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
   }
 
 
+
+  private scheduleChartRender(): void {
+    if (!this.ecartTypeData.length) {
+      return;
+    }
+
+    // Let Angular render the canvas before trying to access it
+    setTimeout(() => {
+      if (!this.chartCanvas?.nativeElement) {
+        console.warn('Chart canvas still unavailable after scheduling render');
+        return;
+      }
+
+      if (!this.chart) {
+        this.initChart();
+      } else {
+        this.updateChart();
+      }
+    });
+  }
 
   private initChart() {
     console.log('📊 Initializing chart...');

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import {catchError, Observable, of} from 'rxjs';
+import { catchError, map, Observable, of } from 'rxjs';
 import { environment } from '../../../env';
 
 import { TimeSeriesParams, TimeSeriesResponse } from '../shared/interface/timeSeries-interface';
@@ -34,28 +34,45 @@ export class ApiService {
       params: httpParams,
     });
   }
-  private mockTrending(limit = 5): TrendingItem[] {
-    const data: TrendingItem[] = [
-      { source: 'coindesk',      value: 32, delta_pct:  0.60 },
-      { source: 'cointelegraph', value: 18, delta_pct: -0.28 },
-      { source: 'decrypt',       value: 14, delta_pct:  0.40 },
-      { source: 'theblock',      value:  9, delta_pct:  0.00 },
-      { source: 'beincrypto',    value: 11, delta_pct:  0.375 },
-    ];
-    return data.slice(0, limit);
-  }
   getTopGainers(limit: number = 10): Observable<any> {
     const httpParams = new HttpParams().set('limit', String(limit));
-    return this.http.get<any>(`${this.baseUrl}/api/crypto/gainers`, { params: httpParams });
+    return this.http
+      .get<any>(`${this.baseUrl}/api/crypto/gainers`, { params: httpParams })
+      .pipe(map((payload) => this.extractResponse(payload)));
   }
 
   getTopLosers(limit: number = 10): Observable<any> {
     const httpParams = new HttpParams().set('limit', String(limit));
-    return this.http.get<any>(`${this.baseUrl}/api/crypto/losers`, { params: httpParams });
+    return this.http
+      .get<any>(`${this.baseUrl}/api/crypto/losers`, { params: httpParams })
+      .pipe(map((payload) => this.extractResponse(payload)));
   }
 
   getMarketOverview(): Observable<any> {
-    return this.http.get<any>(`${this.baseUrl}/api/market/overview`);
+    return this.http
+      .get<any>(`${this.baseUrl}/api/market/overview`)
+      .pipe(map((payload) => this.extractResponse(payload)));
+  }
+
+  getHomeDashboard(limit: number = 5): Observable<any> {
+    const httpParams = new HttpParams().set('limit', String(limit));
+    return this.http
+      .get<any>(`${this.baseUrl}/api/market/home`, { params: httpParams })
+      .pipe(map((payload) => this.extractResponse(payload)));
+  }
+
+  getMarketTrending(params: { window: string; limit?: number }): Observable<TrendingItem[]> {
+    const httpParams = new HttpParams()
+      .set('window', params.window)
+      .set('limit', String(params.limit ?? 5));
+    return this.http
+      .get<any>(`${this.baseUrl}/api/market/trending`, { params: httpParams })
+      .pipe(
+        map((payload) => {
+          const data = this.extractResponse<{ trending?: TrendingItem[] }>(payload);
+          return data?.trending ?? [];
+        })
+      );
   }
 
   // Écart-type (Standard Deviation) API methods
@@ -86,6 +103,7 @@ export class ApiService {
     const endpoint = symbol ? `/data/ecart-type/${symbol}` : '/data/ecart-type';
     return this.http.get(`${this.baseUrl}${endpoint}`, { params: httpParams })
       .pipe(
+        map((payload) => this.extractResponse(payload)),
         catchError(error => {
           console.error('Error fetching écart-type data:', error);
           throw error; // Re-throw error instead of returning mock data
@@ -329,12 +347,32 @@ export class ApiService {
       .set('limit', String(params.limit ?? 5));
 
     return this.http
-      .get<TrendingItem[]>(`${this.baseUrl}/metrics/trending`, {params: httpParams})
+      .get<{ response?: TrendingItem[] } | TrendingItem[]>(`${this.baseUrl}/metrics/trending`, { params: httpParams })
       .pipe(
-        catchError((err) => {
-          console.error('getTrending fallback → mock (reason):', err);
-          return of(this.mockTrending(params.limit ?? 5));
+        map((payload) => {
+          const data = this.extractResponse(payload);
+          if (Array.isArray(data)) {
+            return data;
+          }
+          console.warn('Unexpected trending payload shape, returning empty list');
+          return [];
         })
       );
+  }
+
+  getMarketStats(): Observable<any> {
+    return this.http
+      .get<any>(`${this.baseUrl}/api/market/stats`)
+      .pipe(map((payload) => this.extractResponse(payload)));
+  }
+
+  private extractResponse<T = any>(payload: any): T {
+    if (payload?.response?.data !== undefined) {
+      return payload.response.data as T;
+    }
+    if (payload?.response !== undefined) {
+      return payload.response as T;
+    }
+    return payload as T;
   }
 }
