@@ -19,7 +19,6 @@ from ingestor.builder.algo.average import (
 router = APIRouter(prefix="/algo", tags=["algo"])
 ApiResponse = JsonApiTemplate("api")
 
-# Resolve DB path (container path first, fallback to env)
 DEFAULT_DB = "/app/ingestor/scraper/component/scraperdb/data/ingestor.db"
 DB_PATH = os.getenv("FEEDER_DB_PATH", DEFAULT_DB)
 
@@ -141,7 +140,6 @@ def moving_averages(
     symbol: str | None = Query(None, description="Crypto symbol (e.g., BTC). If omitted, the most frequent symbol is used."),
     limit: int = Query(10000, ge=10, le=100000, description="Max points to return after bucketing"),
 ):
-    # Validate params
     if bucket not in ALLOWED_BUCKETS:
         raise HTTPException(
             status_code=400,
@@ -190,7 +188,6 @@ def moving_averages(
             content=ApiResponse._create_response(level="info", msg=f"No data for symbol {chosen_symbol} in range", response=[]),
         )
 
-    # Trim to limit (keep last N)
     if len(series) > limit:
         series = series[-limit:]
 
