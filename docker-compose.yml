@@ -5,13 +5,14 @@ services:
       dockerfile: ingestor/scraper/Dockerfile
     volumes:
       - ./ingestor:/app/ingestor
-      - ./ingestor/scraper/component/scraperdb/data:/app/scraper/component/scraperdb/data
     working_dir: /app/ingestor/scraper/
     ports:
       - "${SCRAPER_PORT}:8080"
     command: python -m uvicorn main:app --host 0.0.0.0 --port 8080 --reload
     env_file:
       - .env
+    depends_on:
+      - feeder
 
   scraper:
     build:
@@ -26,11 +27,12 @@ services:
       context: .
       dockerfile: ingestor/scraper/component/scraperdb/Dockerfile
     volumes:
-      - .:/app
+      - ./ingestor:/app/ingestor
       - ./data:/data
+    working_dir: /app
     env_file:
       - .env
-    command: python ingestor/scraper/component/scraperdb/database_feeder.py
+    command: python /app/ingestor/scraper/component/scraperdb/database_feeder.py
 
   web:
     build:
