@@ -348,7 +348,7 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
           console.log('Processing time_series with', timeSeries.length, 'items');
           
           this.ecartTypeData = timeSeries
-            .filter((item: any) => item.price_volatility_std != null && item.price_volatility_std > 0)
+            .filter((item: any) => item.price_volatility_std != null && !isNaN(item.price_volatility_std))
             .map((item: any) => ({
               timestamp: item.ts,
               value: Number((item.price_volatility_std || 0).toFixed(3)),
@@ -357,6 +357,7 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
             .sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
             
           console.log('Processed écart-type data:', this.ecartTypeData.length, 'points');
+          console.log('Sample data:', this.ecartTypeData.slice(0, 3));
             
           // Calculate stats from time series data
           const volatilityValues = this.ecartTypeData.map(item => item.value);
@@ -381,7 +382,7 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
           console.log('Processing detailed_results with', detailedResults.length, 'items');
           
           this.ecartTypeData = detailedResults
-            .filter((item: any) => item.price_volatility_std != null)
+            .filter((item: any) => item.price_volatility_std != null && !isNaN(item.price_volatility_std))
             .map((item: any) => ({
               timestamp: item.ts,
               value: Number((item.price_volatility_std || 0).toFixed(3)),
@@ -512,9 +513,12 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
 
     // Ensure we have data to display
     if (!this.ecartTypeData || this.ecartTypeData.length === 0) {
-      console.warn('No data available for chart');
+      console.warn('No data available for chart. Data array:', this.ecartTypeData);
+      console.warn('Selected symbol:', this.selectedSymbol);
       return;
     }
+    
+    console.log('Chart data available:', this.ecartTypeData.length, 'points for symbol:', this.selectedSymbol);
 
     const labels = this.ecartTypeData.map(d => d.label);
     const dataValues = this.ecartTypeData.map(d => d.value);

@@ -783,3 +783,73 @@ async def trigger_rsi_calculation(
             response={"error_details": error_details.split('\n')[-3:-1]}
         )
         return JSONResponse(content=response, status_code=500)
+
+
+@router.get("/news")
+async def get_news_articles(
+    limit: int = Query(50, ge=1, le=1000, description="Maximum number of news articles to return")
+):
+    """
+    Get crypto news articles from the data/news.json file.
+    
+    Returns news articles transformed to match the frontend interface expectations.
+    """
+    try:
+        import json
+        
+        # Path to news.json file (in the root data folder)
+        news_file_path = PathLib(__file__).parent.parent.parent.parent.parent / "data" / "news.json"
+        
+        if not news_file_path.exists():
+            response = ApiResponse._create_response(
+                level="error",
+                msg="News data file not found",
+                response={"articles": []}
+            )
+            return JSONResponse(content=response, status_code=404)
+        
+        articles = []
+        
+        # Read JSONL format (each line is a JSON object)
+        with open(news_file_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()[:limit]  # Apply limit early for performance
+            
+        for line in lines:
+            try:
+                news_item = json.loads(line.strip())
+                
+                # Transform the data structure to match frontend interface
+                transformed_article = {
+                    "title": news_item.get("title", ""),
+                    "link": news_item.get("url", ""),
+                    "section": news_item.get("source", "crypto").lower(),
+                    "timestamp": news_item.get("published_at", ""),
+                    "scraped_at": news_item.get("fetched_at", ""),
+                    "content": news_item.get("content", ""),
+                    "has_content": bool(news_item.get("content", "").strip())
+                }
+                
+                # Only include articles with content
+                if transformed_article["has_content"]:
+                    articles.append(transformed_article)
+                    
+            except json.JSONDecodeError as e:
+                print(f"Error parsing JSON line: {e}")
+                continue
+        
+        response = ApiResponse._create_response(
+            level="success",
+            msg=f"Retrieved {len(articles)} news articles successfully",  
+            response={"articles": articles}
+        )
+        return JSONResponse(content=response, status_code=200)
+        
+    except Exception as e:
+        print(f"Error reading news data: {e}")
+        error_details = f"Exception: {type(e).__name__}: {str(e)}"
+        response = ApiResponse._create_response(
+            level="error",
+            msg=f"Failed to retrieve news articles: {str(e)}",
+            response={"error_details": error_details.split('\n')[-3:-1]}
+        )
+        return JSONResponse(content=response, status_code=500)

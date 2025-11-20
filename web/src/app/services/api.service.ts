@@ -20,8 +20,15 @@ export class ApiService {
     return this.http.get(`${this.baseUrl}/api/health/check`);
   }
 
-  getNews(): Observable<any> {
-    return this.http.get(`${this.baseUrl}/api/news`);
+  getNews(limit: number = 50): Observable<any> {
+    const httpParams = new HttpParams().set('limit', String(limit));
+    return this.http.get<any>(`${this.baseUrl}/data/news`, { params: httpParams })
+      .pipe(
+        catchError(error => {
+          console.error('Error fetching news:', error);
+          return of({ response: { articles: [] } });
+        })
+      );
   }
 
   getTimeseries(params: TimeSeriesParams | null): Observable<TimeSeriesResponse[]> {

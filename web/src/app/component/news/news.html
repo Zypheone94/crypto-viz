@@ -1,0 +1,103 @@
+<div class="news-container">
+  <div class="news-header">
+    <h1>
+      <mat-icon>newspaper</mat-icon>
+      Actualités Crypto
+    </h1>
+    <p>Restez informé des dernières nouvelles du monde de la cryptomonnaie</p>
+  </div>
+
+  <!-- News Filters -->
+  <div class="news-filters" *ngIf="!isLoading">
+    <div class="filter-row">
+      <mat-form-field appearance="outline" class="filter-field">
+        <mat-label>Section</mat-label>
+        <mat-select [value]="currentFilters.section" (selectionChange)="onSectionFilterChange($event.value)">
+          <mat-option value="all">Toutes les sections</mat-option>
+          <mat-option *ngFor="let section of availableSections" [value]="section">
+            <mat-icon>{{ getSectionIcon(section) }}</mat-icon>
+            {{ section | titlecase }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="filter-field">
+        <mat-label>Période</mat-label>
+        <mat-select [value]="currentFilters.dateRange" (selectionChange)="onDateRangeFilterChange($event.value)">
+          <mat-option value="all">Toutes les dates</mat-option>
+          <mat-option value="today">Aujourd'hui</mat-option>
+          <mat-option value="week">Cette semaine</mat-option>
+          <mat-option value="month">Ce mois</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="filter-field search-field">
+        <mat-label>Rechercher</mat-label>
+        <input matInput [value]="currentFilters.searchTerm" (input)="onSearchTermChange($any($event.target).value)" placeholder="Titre ou contenu...">
+        <mat-icon matSuffix>search</mat-icon>
+      </mat-form-field>
+
+      <button mat-raised-button color="accent" (click)="clearFilters()" class="clear-filters-btn">
+        <mat-icon>clear</mat-icon>
+        Effacer
+      </button>
+    </div>
+    
+    <!-- Filter chips -->
+    <div class="active-filters" *ngIf="currentFilters.section !== 'all' || currentFilters.dateRange !== 'all' || currentFilters.searchTerm">
+      <mat-chip-set>
+        <mat-chip *ngIf="currentFilters.section !== 'all'" (removed)="onSectionFilterChange('all')">
+          {{ currentFilters.section | titlecase }}
+          <mat-icon matChipRemove>cancel</mat-icon>
+        </mat-chip>
+        <mat-chip *ngIf="currentFilters.dateRange !== 'all'" (removed)="onDateRangeFilterChange('all')">
+          {{ currentFilters.dateRange === 'today' ? 'Aujourd\'hui' : 
+             currentFilters.dateRange === 'week' ? 'Cette semaine' : 
+             currentFilters.dateRange === 'month' ? 'Ce mois' : currentFilters.dateRange }}
+          <mat-icon matChipRemove>cancel</mat-icon>
+        </mat-chip>
+        <mat-chip *ngIf="currentFilters.searchTerm" (removed)="onSearchTermChange('')">
+          "{{ currentFilters.searchTerm }}"
+          <mat-icon matChipRemove>cancel</mat-icon>
+        </mat-chip>
+      </mat-chip-set>
+    </div>
+  </div>
+
+  <div class="loading-container" *ngIf="isLoading">
+    <mat-spinner></mat-spinner>
+    <p>Chargement des actualités...</p>
+  </div>
+
+  <div class="news-grid" *ngIf="!isLoading">
+    <mat-card class="news-card" *ngFor="let article of articles">
+      <mat-card-header>
+        <div class="section-badge" [style.background-color]="getSectionColor(article.section)">
+          <mat-icon>{{ getSectionIcon(article.section) }}</mat-icon>
+          <span>{{ article.section }}</span>
+        </div>
+        <div class="card-spacer"></div>
+        <div class="timestamp">
+          {{ formatDate(article.timestamp) }}
+        </div>
+      </mat-card-header>
+      
+      <mat-card-content>
+        <h3 class="article-title">{{ article.title }}</h3>
+        <p class="article-content">{{ truncateContent(article.content) }}</p>
+      </mat-card-content>
+      
+      <mat-card-actions>
+        <a [href]="article.link" target="_blank" rel="noopener noreferrer" class="read-more-btn">
+          <mat-icon>open_in_new</mat-icon>
+          Lire l'article complet
+        </a>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+
+  <div class="no-articles" *ngIf="!isLoading && articles.length === 0">
+    <mat-icon>info</mat-icon>
+    <p>Aucun article disponible pour le moment.</p>
+  </div>
+</div>
