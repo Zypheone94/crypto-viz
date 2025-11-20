@@ -36,9 +36,7 @@ dependencies = [
     "lxml_html_clean",
     "loguru",
     "polars",
-    "pika",
-    "scikit-learn",
-    "numpy"
+    "pika"
 ]
 
 
