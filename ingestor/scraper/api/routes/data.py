@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query, Path
 from fastapi.responses import JSONResponse
 from api.utils.json_api_res_template import JsonApiTemplate
 
-# Add builder module to path for ecart_Type imports
+# Add builder module to path for other imports if needed
 builder_path = PathLib(__file__).parent.parent.parent.parent / "builder"
 sys.path.append(str(builder_path))
 
@@ -97,11 +97,11 @@ async def get_ecart_type_analysis(
         # Ensure proper data types
         df = df.with_columns([
             pl.col("price_usd").cast(pl.Float64),
-            pl.col("ts").str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC")
+            pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S.%f", time_zone="UTC")
         ])
         
         # Calculate écart type analysis
-        from ecart_Type import build_ecart_type
+        from .algo.ecart_Type import build_ecart_type
         results_df = build_ecart_type(df, period=period)
         
         # Generate summary statistics
@@ -270,11 +270,11 @@ async def get_symbol_ecart_type_analysis(
         # Ensure proper data types
         df = df.with_columns([
             pl.col("price_usd").cast(pl.Float64),
-            pl.col("ts").str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC")
+            pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S.%f", time_zone="UTC")
         ])
         
         # Calculate écart type for this symbol
-        from ecart_Type import build_ecart_type
+        from .algo.ecart_Type import build_ecart_type
         results_df = build_ecart_type(df, period=period)
         
         if results_df.height == 0:
@@ -366,7 +366,7 @@ async def trigger_ecart_type_calculation(
     fresh volatility metrics for all available symbols.
     """
     try:
-        from ecart_Type import process_and_save_ecart_analysis
+        from .algo.ecart_Type import process_and_save_ecart_analysis
         results = process_and_save_ecart_analysis(period=period, limit=limit)
         
         if not results['success']:
@@ -502,7 +502,7 @@ async def get_rsi_analysis(
         # Process data
         df = df.with_columns([
             pl.col("price_usd").cast(pl.Float64),
-            pl.col("ts").str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC")
+            pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S.%f", time_zone="UTC")
         ])
         
         # Import RSI module
@@ -656,7 +656,7 @@ async def get_symbol_rsi_analysis(
         # Process data
         df = df.with_columns([
             pl.col("price_usd").cast(pl.Float64),
-            pl.col("ts").str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC")
+            pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S.%f", time_zone="UTC")
         ])
         
         # Import and calculate RSI

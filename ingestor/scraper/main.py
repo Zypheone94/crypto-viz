@@ -32,6 +32,7 @@ app.include_router(health.router)
 app.include_router(data.router)
 app.include_router(metrics.router)
 app.include_router(average.router)
+app.include_router(market_route.router)
 """
 REMINDER : You must start your api path by : 
 - API (if you do something with the api, health, etc...)

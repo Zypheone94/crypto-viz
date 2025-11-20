@@ -20,9 +20,16 @@ def build_ecart_type(df: pl.DataFrame, period: int = 14) -> pl.DataFrame:
     if missing_cols:
         raise ValueError(f"Missing required columns: {missing_cols}")
     
+    # Handle both string and datetime inputs for ts column
+    ts_col = pl.col("ts")
+    if df.dtypes[df.columns.index("ts")] == pl.String:
+        ts_col = ts_col.str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC")
+    elif df.dtypes[df.columns.index("ts")] != pl.Datetime:
+        ts_col = ts_col.cast(pl.Datetime(time_zone="UTC"))
+    
     df_clean = (
         df.filter(pl.col("price_usd").is_not_null())
-          .with_columns(pl.col("ts").cast(pl.Datetime(time_zone="UTC")))
+          .with_columns(ts_col.alias("ts"))
           .sort(["symbol", "ts"])
     )
     

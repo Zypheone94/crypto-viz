@@ -2,17 +2,12 @@ from fastapi import APIRouter, Query, HTTPException
 from typing import Dict, Any
 from datetime import datetime, timezone, timedelta
 import sqlite3
-import os
 from pathlib import Path
 
 from ..utils import JsonApiTemplate
 
-def _resolve(path: Path) -> Path:
-    if path.is_absolute():
-        return path
-    return (Path.cwd() / path).resolve()
-
-DB_PATH = _resolve(Path("component/scraperdb/data/ingestor.db"))
+# Use container database path
+DB_PATH = Path("/app/ingestor/scraper/component/scraperdb/data/ingestor.db")
 
 router = APIRouter(
     prefix="/api",
@@ -23,9 +18,9 @@ ApiResponse = JsonApiTemplate("api")
 
 def get_db_connection():
     """Get database connection"""
-    if not os.path.exists(DB_PATH):
-        raise HTTPException(status_code=500, detail="Database not found")
-    return sqlite3.connect(DB_PATH)
+    if not DB_PATH.exists():
+        raise HTTPException(status_code=500, detail=f"Database not found at {DB_PATH}")
+    return sqlite3.connect(str(DB_PATH))
 
 
 def _fetch_top_gainers_data(limit: int) -> Dict[str, Any]:
