@@ -1,26 +1,32 @@
-import sqlite3
-from pathlib import Path
-import os
+import mysql.connector
 
-data_dir = Path(__file__).parent / "data"
-data_dir.mkdir(exist_ok=True)
-con = sqlite3.connect(str(data_dir / "ingestor.db"))
+#conf server local sql
+config = {
+    "host": "localhost",
+    "user": "ingestor_user",
+    "password": "password123",
+    "database": "ingestor"
+}
+
+con = mysql.connector.connect(**config)
 cur = con.cursor()
+
+print("Connexion MySQL")
 
 cur.execute('''
 CREATE TABLE IF NOT EXISTS symbol (
-    id INTEGER PRIMARY KEY,
-    symbol TEXT UNIQUE NOT NULL
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    symbol VARCHAR(255) UNIQUE NOT NULL
 );
 ''')
 
 cur.execute('''
 CREATE TABLE IF NOT EXISTS delta (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    symbol TEXT NOT NULL,
-    date_start TIMESTAMP,
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    symbol VARCHAR(255) NOT NULL,
+    date_start DATETIME,
     date_end DATE,
-    window_label TEXT,
+    window_label VARCHAR(255),
     delta FLOAT,
     delta_pct FLOAT,
     FOREIGN KEY(symbol) REFERENCES symbol(symbol)
@@ -29,10 +35,10 @@ CREATE TABLE IF NOT EXISTS delta (
 
 cur.execute('''
 CREATE TABLE IF NOT EXISTS article (
-    id TEXT PRIMARY KEY,
-    fetched_at TIMESTAMP,
+    id VARCHAR(255) PRIMARY KEY,
+    fetched_at DATETIME,
     url TEXT,
-    symbol TEXT NOT NULL,
+    symbol VARCHAR(255) NOT NULL,
     name TEXT,
     price FLOAT,
     market_cap FLOAT,
@@ -42,27 +48,10 @@ CREATE TABLE IF NOT EXISTS article (
 );
 ''')
 
-"""cur.execute('''
-        CREATE VIEW ml_features AS
-        SELECT
-            d.symbol,
-            d.date_start,
-            d.date_end,
-            d.delta_pct AS target_delta_pct,
-            CASE WHEN d.delta_pct > 0 THEN 1 ELSE 0 END AS target_up,
-            AVG(a.volume_24h) AS avg_volume,
-            AVG(a.price)                    AS avg_price,
-            AVG(a.market_cap)               AS avg_market_cap,
-            AVG(a.coin_circulating)         AS avg_circulating
-        FROM delta d
-        LEFT JOIN article a
-            ON a.symbol = d.symbol
-         AND a.fetched_at >= d.date_start
-         AND a.fetched_at <  d.date_end
-        GROUP BY 1,2,3,4,5;
-''')"""
-
 con.commit()
 
-print("Tables created :", list(cur.execute("SELECT name FROM sqlite_master WHERE type='table';")))
+cur.execute("SHOW TABLES;")
+print("Tables dans la DB :", [t[0] for t in cur.fetchall()])
+
+cur.close()
 con.close()

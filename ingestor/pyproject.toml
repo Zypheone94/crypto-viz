@@ -36,7 +36,8 @@ dependencies = [
     "lxml_html_clean",
     "loguru",
     "polars",
-    "pika"
+    "pika",
+    "mysql-connector-python"
 ]
 
 
