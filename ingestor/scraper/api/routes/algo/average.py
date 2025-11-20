@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-import sqlite3
+import mysql.connector
 from datetime import datetime, timezone
 from typing import Literal, List, Dict, Any
 
@@ -18,9 +18,6 @@ from ingestor.builder.algo.average import (
 
 router = APIRouter(prefix="/algo", tags=["algo"])
 ApiResponse = JsonApiTemplate("api")
-
-DEFAULT_DB = "/app/ingestor/scraper/component/scraperdb/data/ingestor.db"
-DB_PATH = os.getenv("FEEDER_DB_PATH", DEFAULT_DB)
 
 ALLOWED_BUCKETS: set[str] = {"day", "hour"}
 ALLOWED_MA: set[str] = {"sma", "wma", "ema", "all"}
@@ -44,15 +41,18 @@ def _parse_iso(dt_str: str, name: str) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-def _pick_default_symbol(con: sqlite3.Connection) -> str | None:
-    row = con.execute(
+def _pick_default_symbol(con: mysql.connector.MySQLConnection) -> str | None:
+    cursor = con.cursor()
+    cursor.execute(
         "SELECT symbol, COUNT(*) AS c FROM article WHERE symbol IS NOT NULL GROUP BY symbol ORDER BY c DESC LIMIT 1"
-    ).fetchone()
+    )
+    row = cursor.fetchone()
+    cursor.close()
     return row[0] if row else None
 
 
 def _load_bucketed_prices(
-    con: sqlite3.Connection,
+    con: mysql.connector.MySQLConnection,
     symbol: str,
     dt_from: datetime,
     dt_to: datetime,
@@ -60,69 +60,75 @@ def _load_bucketed_prices(
 ) -> List[Dict[str, Any]]:
     """Return a list of {t, price} averaged per bucket for a given symbol.
 
-    We normalize fetched_at strings into SQLite datetime and group by day/hour.
+    We normalize fetched_at strings into MySQL datetime and group by day/hour.
     """
     from_str = dt_from.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
     to_str = dt_to.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
 
     if bucket == "hour":
-        bucket_sql = "strftime('%Y-%m-%dT%H:00:00', datetime(replace(substr(fetched_at,1,19),'T',' ')))"
+        bucket_sql = "DATE_FORMAT(STR_TO_DATE(SUBSTRING(fetched_at, 1, 19), '%Y-%m-%dT%H:%i:%s'), '%Y-%m-%dT%H:00:00')"
     else:
-        bucket_sql = "strftime('%Y-%m-%dT00:00:00', datetime(replace(substr(fetched_at,1,19),'T',' ')))"
+        bucket_sql = "DATE_FORMAT(STR_TO_DATE(SUBSTRING(fetched_at, 1, 19), '%Y-%m-%dT%H:%i:%s'), '%Y-%m-%dT00:00:00')"
 
     sql = f"""
         SELECT {bucket_sql} AS t, AVG(price) AS price
         FROM article
-        WHERE LOWER(symbol) = LOWER(?)
+        WHERE LOWER(symbol) = LOWER(%s)
           AND price IS NOT NULL
           AND fetched_at IS NOT NULL
-          AND datetime(replace(substr(fetched_at,1,19),'T',' ')) >= datetime(?)
-          AND datetime(replace(substr(fetched_at,1,19),'T',' ')) <= datetime(?)
+          AND STR_TO_DATE(SUBSTRING(fetched_at, 1, 19), '%Y-%m-%dT%H:%i:%s') >= %s
+          AND STR_TO_DATE(SUBSTRING(fetched_at, 1, 19), '%Y-%m-%dT%H:%i:%s') <= %s
         GROUP BY t
         ORDER BY t ASC
     """
 
-    rows = con.execute(sql, (symbol, from_str, to_str)).fetchall()
+    cursor = con.cursor()
+    cursor.execute(sql, (symbol, from_str, to_str))
+    rows = cursor.fetchall()
+    cursor.close()
     return [{"t": r[0], "price": float(r[1])} for r in rows]
 
 
 @router.get("/availability")
 def availability(symbol: str | None = Query(None)):
     """Quick helper to inspect available symbols and their time ranges."""
-    if not os.path.exists(DB_PATH):
-        raise HTTPException(
-            status_code=500,
-            detail=ApiResponse._create_response(level="error", msg=f"Database not found at {DB_PATH}", response=[]),
-        )
     try:
-        con = sqlite3.connect(DB_PATH)
-    except sqlite3.Error as e:
+        con = mysql.connector.connect(
+            host="host.docker.internal",
+            user="ingestor_user",
+            password="password123",
+            database="ingestor"
+        )
+    except mysql.connector.Error as e:
         raise HTTPException(
             status_code=500,
-            detail=ApiResponse._create_response(level="error", msg=f"SQLite error: {e}", response=[]),
+            detail=ApiResponse._create_response(level="error", msg=f"MySQL error: {e}", response=[]),
         )
 
-    with con:
-        params: list[Any] = []
-        where = ""
-        if symbol:
-            where = "WHERE symbol = ?"
-            params.append(symbol)
-        rows = con.execute(
-            f"""
-            SELECT symbol,
-                   COUNT(*) AS cnt,
-                   MIN(datetime(replace(substr(fetched_at,1,19),'T',' '))) AS first_ts,
-                   MAX(datetime(replace(substr(fetched_at,1,19),'T',' '))) AS last_ts
-            FROM article
-            {where}
-            GROUP BY symbol
-            ORDER BY cnt DESC
-            """,
-            params,
-        ).fetchall()
+    cursor = con.cursor()
+    params: list[Any] = []
+    where = ""
+    if symbol:
+        where = "WHERE symbol = %s"
+        params.append(symbol)
+    
+    query = f"""
+        SELECT symbol,
+               COUNT(*) AS cnt,
+               MIN(STR_TO_DATE(SUBSTRING(fetched_at, 1, 19), '%Y-%m-%dT%H:%i:%s')) AS first_ts,
+               MAX(STR_TO_DATE(SUBSTRING(fetched_at, 1, 19), '%Y-%m-%dT%H:%i:%s')) AS last_ts
+        FROM article
+        {where}
+        GROUP BY symbol
+        ORDER BY cnt DESC
+    """
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    cursor.close()
+    con.close()
+    
     data = [
-        {"symbol": r[0], "count": int(r[1]), "first_ts": r[2], "last_ts": r[3]} for r in rows
+        {"symbol": r[0], "count": int(r[1]), "first_ts": str(r[2]) if r[2] else None, "last_ts": str(r[3]) if r[3] else None} for r in rows
     ]
     return JSONResponse(
         content=ApiResponse._create_response(level="info", msg="Availability", response=data),
@@ -159,28 +165,28 @@ def moving_averages(
             detail=ApiResponse._create_response(level="error", msg="'from' doit être < 'to'", response=[]),
         )
 
-    if not os.path.exists(DB_PATH):
-        raise HTTPException(
-            status_code=500,
-            detail=ApiResponse._create_response(level="error", msg=f"Database not found at {DB_PATH}", response=[]),
-        )
-
     try:
-        con = sqlite3.connect(DB_PATH)
-    except sqlite3.Error as e:
+        con = mysql.connector.connect(
+            host="host.docker.internal",
+            user="ingestor_user",
+            password="password123",
+            database="ingestor"
+        )
+    except mysql.connector.Error as e:
         raise HTTPException(
             status_code=500,
-            detail=ApiResponse._create_response(level="error", msg=f"SQLite error: {e}", response=[]),
+            detail=ApiResponse._create_response(level="error", msg=f"MySQL error: {e}", response=[]),
         )
 
-    with con:
-        chosen_symbol = symbol or _pick_default_symbol(con)
-        if not chosen_symbol:
-            return JSONResponse(
-                status_code=200,
-                content=ApiResponse._create_response(level="info", msg="No symbol found in DB", response=[]),
-            )
-        series = _load_bucketed_prices(con, chosen_symbol, dt_from, dt_to, bucket)
+    chosen_symbol = symbol or _pick_default_symbol(con)
+    if not chosen_symbol:
+        con.close()
+        return JSONResponse(
+            status_code=200,
+            content=ApiResponse._create_response(level="info", msg="No symbol found in DB", response=[]),
+        )
+    series = _load_bucketed_prices(con, chosen_symbol, dt_from, dt_to, bucket)
+    con.close()
 
     if not series:
         return JSONResponse(

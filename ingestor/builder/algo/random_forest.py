@@ -4,7 +4,7 @@ Features: price, volume_24h, market_cap, moving averages
 Target: 1 si prix monte dans la prochaine fenêtre, 0 sinon
 """
 import os
-import sqlite3
+import mysql.connector
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
 import pickle
@@ -16,27 +16,28 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 
 
-DB_PATH = Path(os.getenv("FEEDER_DB_PATH", "/app/ingestor/scraper/component/scraperdb/data/ingestor.db"))
 MODEL_DIR = Path(os.getenv("MODEL_DIR", "/app/ingestor/builder/algo/models"))
 MODEL_PATH = MODEL_DIR / "random_forest.pkl"
 
 
 def load_data_from_db(symbol: str | None = None, limit: int = 10000) -> pd.DataFrame:
     """
-    Charge les données depuis SQLite et calcule les features pour le Random Forest.
+    Charge les données depuis MySQL et calcule les features pour le Random Forest.
     
     Returns: DataFrame avec colonnes [symbol, fetched_at, price, volume_24h, market_cap, 
                                       price_change, target]
     """
-    if not DB_PATH.exists():
-        raise FileNotFoundError(f"Database not found at {DB_PATH}")
-    
-    con = sqlite3.connect(str(DB_PATH))
+    con = mysql.connector.connect(
+        host="host.docker.internal",
+        user="ingestor_user",
+        password="password123",
+        database="ingestor"
+    )
     
     where_clause = ""
     params: List[Any] = []
     if symbol:
-        where_clause = "WHERE symbol = ?"
+        where_clause = "WHERE symbol = %s"
         params.append(symbol)
     
     query = f"""
@@ -50,7 +51,7 @@ def load_data_from_db(symbol: str | None = None, limit: int = 10000) -> pd.DataF
         FROM article
         {where_clause}
         ORDER BY symbol, fetched_at ASC
-        LIMIT ?
+        LIMIT %s
     """
     params.append(limit)
     
