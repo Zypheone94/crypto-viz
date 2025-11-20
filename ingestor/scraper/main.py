@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import health, metrics
+from api.routes import health
+from api.routes.analytics import metrics
+from api.routes.algo import average
 from api.utils.middleware import Middleware
 import os
 from dotenv import load_dotenv
@@ -27,6 +29,7 @@ app.add_middleware(Middleware)
 
 app.include_router(health.router)
 app.include_router(metrics.router)
+app.include_router(average.router)
 """
 REMINDER : You must start your api path by : 
 - API (if you do something with the api, health, etc...)

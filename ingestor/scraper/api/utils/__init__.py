@@ -1,0 +1,1 @@
+from .json_api_res_template import JsonApiTemplate

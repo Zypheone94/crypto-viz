@@ -1,132 +1,186 @@
-import os, time, json, hashlib, pathlib, io, codecs
-from typing import Iterable, Dict, List
-from loguru import logger
-import polars as pl
-from dotenv import load_dotenv
+import os
+import time
+import json
+import hashlib
+import pathlib
+import io
+import codecs
 import re
-#utilitaire
-def _clean_text(s: str | None) -> str:
-    if not s:
-        return ""
+from typing import Iterable, Dict, List
+
+import pika
+import polars as pl
+from loguru import logger
+from dotenv import load_dotenv
+
+def _clean_text(s: str | None) -> str | None:
+    if s is None:
+        return None
     s = s.encode("utf-8", errors="ignore").decode("utf-8")
     s = re.sub(r"\s+", " ", s.strip())
     return s
 
-HERE = pathlib.Path(__file__).resolve().parent
-load_dotenv(HERE.parent / "./.env")
-OUT_DIR = pathlib.Path(os.getenv("OUT_DIR", "../data/clean/parquet"))
-RAW_DIR = pathlib.Path(os.getenv("RAW_DIR", "../data/raw"))
-INGEST_SOURCE = os.getenv("INGEST_SOURCE", "kafka").lower()
-KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "localhost:9094")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "crypto-viz")
-BATCH_MAX_MSG = int(os.getenv("BATCH_MAX_MSG", "200"))
-BATCH_MAX_SEC = int(os.getenv("BATCH_MAX_SEC", "5"))
 
-SEEN_IDS: set[str] = set()
 def _id(article: Dict) -> str:
-    return hashlib.sha1(((article.get("url") or "") + (article.get("title") or "")).encode("utf-8")).hexdigest()
+    try:
+        payload = json.dumps(
+            {
+                "url": article.get("url"),
+                "title": article.get("title"),
+                "name": article.get("name"),
+                "symbol": article.get("symbol"),
+                "published_at": article.get("published_at"),
+                "fetched_at": article.get("fetched_at"),
+            },
+            sort_keys=True,
+            ensure_ascii=False,
+        )
+    except TypeError:
+        payload = repr(
+            (
+                article.get("url"),
+                article.get("title"),
+                article.get("name"),
+                article.get("symbol"),
+                article.get("published_at"),
+                article.get("fetched_at"),
+            )
+        )
+    return hashlib.sha1(payload.encode("utf-8")).hexdigest()
+
 
 def normalize(a: Dict) -> Dict:
     return {
-        "id": _id(a),
-        "title": a.get("title"),
+        "id": a.get("id") or _id(a),
+        "name": a.get("name") or a.get("title"),
         "url": a.get("url"),
         "source": a.get("source"),
         "published_at": a.get("published_at"),
         "fetched_at": a.get("fetched_at"),
+        "symbol": a.get("symbol"),
+        "price": a.get("price") or a.get("price_usd"),
+        "market_cap": a.get("market_cap") or a.get("market_cap_usd"),
+        "volume_24h": a.get("volume_24h"),
+        "coin_circulating": a.get("coin_circulating"),
     }
-def flush_batch(batch: List[Dict]) -> int:
 
+
+HERE = pathlib.Path(__file__).resolve().parent
+load_dotenv(HERE.parent / ".env")
+
+OUT_DIR = pathlib.Path(os.getenv("OUT_DIR", "../data/clean/parquet"))
+RAW_DIR = pathlib.Path(os.getenv("RAW_DIR", "../data/raw"))
+REJECT_DIR = OUT_DIR.parent / "_corrupt"  # pas utilisé ici
+
+INGEST_SOURCE = os.getenv("INGEST_SOURCE", "rabbitmq").lower()
+
+RABBIT_HOST = os.getenv("RABBIT_HOST", "rabbitmq")
+RABBIT_PORT = int(os.getenv("RABBIT_PORT", 5672))
+RABBIT_USER = os.getenv("RABBIT_USER", "user")
+RABBIT_PASS = os.getenv("RABBIT_PASS", "password")
+RABBIT_QUEUE = os.getenv("RABBIT_TOPIC", "crypto-viz")
+
+BATCH_MAX_MSG = int(os.getenv("BATCH_MAX_MSG", "200"))
+BATCH_MAX_SEC = int(os.getenv("BATCH_MAX_SEC", "60"))
+SLEEP_SEC = int(os.getenv("BUILDER_POLL_INTERVAL", "5"))
+def flush_batch(batch: List[Dict]) -> int:
+    """
+    Version ultra tolérante :
+    - pas de SEEN_IDS global
+    - pas de dédup agressive
+    - pas de parsing datetime fragile
+    Chaque enregistrement du batch devient une ligne.
+    """
     if not batch:
         return 0
 
-    dedup: dict[str, dict] = {}
     for r in batch:
-        rid = r.get("id")
-        if not rid:
-            rid = hashlib.sha1(((r.get("url") or "") + (r.get("title") or "")).encode("utf-8")).hexdigest()
-            r["id"] = rid
-        dedup[rid] = r
-
-    new_rows = [r for r in dedup.values() if r["id"] not in SEEN_IDS]
-    if not new_rows:
+        if not r.get("id"):
+            r["id"] = _id(r)
+    try:
+        df = pl.from_dicts(batch, infer_schema_length=None)
+    except Exception as e:
+        logger.error(f"[BUILDER] flush_batch: failed to build DataFrame from dicts: {e}")
         return 0
-    SEEN_IDS.update(r["id"] for r in new_rows)
-
-    df = pl.DataFrame(new_rows)
-
-    df = df.with_columns([
-        pl.col("published_at")
-          .cast(pl.Utf8)
-          .str.replace(r"Z$", "+00:00")
-          .str.strptime(pl.Datetime, format="%Y-%m-%dT%H:%M:%S%z", strict=False)
-          .alias("ts_parsed")
-    ]).with_columns([
-        pl.when(pl.col("ts_parsed").is_not_null())
-          .then(pl.col("ts_parsed").dt.convert_time_zone("UTC"))
-          .otherwise(None)
-          .alias("ts")
-    ])
-
-    invalid = (df.filter(pl.col("ts").is_null())
-                 .with_columns(pl.col("published_at").alias("_corrupt_record"))
-                 .select(["id","title","url","source","published_at","fetched_at","_corrupt_record"]))
-
-    valid = (df.filter(pl.col("ts").is_not_null())
-               .with_columns(pl.col("ts").dt.date().alias("date"))
-               .select(["id","ts","date","title","url","source","fetched_at"]))
-    valid = valid.with_columns([
-        pl.col("title").map_elements(_clean_text, return_dtype=pl.Utf8),
-        pl.col("url").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
-        pl.col("source").cast(pl.Utf8).map_elements(_clean_text, return_dtype=pl.Utf8),
-    ])
-    valid = valid.select(["id", "ts", "date", "title", "url", "source", "fetched_at"])
-
-    if invalid.height > 0:
-        rej_dir = OUT_DIR.parent / "_corrupt"
-        rej_dir.mkdir(parents=True, exist_ok=True)
-        rej_path = rej_dir / f"reject-{int(time.time())}.ndjson"
-        with open(rej_path, "w", encoding="utf-8") as f:
-            for rec in invalid.to_dicts():
-                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-        logger.warning(json.dumps({
-            "service":"builder","mode":INGEST_SOURCE,"msg":"corrupt_rows",
-            "count": invalid.height, "reject_file": str(rej_path)
-        }))
+    df = df.with_columns(
+        [
+            pl.col("name").cast(pl.Utf8, strict=False).map_elements(_clean_text, return_dtype=pl.Utf8),
+            pl.col("url").cast(pl.Utf8, strict=False).map_elements(_clean_text, return_dtype=pl.Utf8),
+            pl.col("source").cast(pl.Utf8, strict=False).map_elements(_clean_text, return_dtype=pl.Utf8),
+            pl.col("symbol").cast(pl.Utf8, strict=False).map_elements(_clean_text, return_dtype=pl.Utf8),
+            pl.col("price").cast(pl.Float64, strict=False),
+            pl.col("market_cap").cast(pl.Float64, strict=False),
+            pl.col("volume_24h").cast(pl.Float64, strict=False),
+            pl.col("coin_circulating").cast(pl.Float64, strict=False),
+            pl.col("fetched_at").cast(pl.Utf8, strict=False),
+            pl.col("published_at").cast(pl.Utf8, strict=False),
+        ]
+    )
+    df = df.with_columns(
+        [
+            pl.when(pl.col("fetched_at").str.len_chars() >= 10)
+            .then(pl.col("fetched_at").str.slice(0, 10))
+            .when(pl.col("published_at").str.len_chars() >= 10)
+            .then(pl.col("published_at").str.slice(0, 10))
+            .otherwise(pl.lit("unknown"))
+            .alias("date")
+        ]
+    )
+    valid = df.select(
+        [
+            "id",
+            "name",
+            "url",
+            "source",
+            "published_at",
+            "fetched_at",
+            "symbol",
+            "price",
+            "market_cap",
+            "volume_24h",
+            "coin_circulating",
+            "date",
+        ]
+    )
+    try:
+        symbols = (
+            valid.select(pl.col("symbol").drop_nulls().unique())
+            .to_series()
+            .to_list()
+        )
+        symbols_sample = symbols[:10]
+        logger.info(
+            f"[BUILDER] batch_in size={valid.height} "
+            f"symbols_count={len(symbols)} symbols_sample={symbols_sample}"
+        )
+    except Exception:
+        pass
 
     written = 0
     for key, g in valid.group_by("date"):
         date_value = key[0] if isinstance(key, tuple) else key
-        folder = getattr(date_value, "isoformat", lambda: str(date_value))()
+        folder = str(date_value)
         outdir = OUT_DIR / f"date={folder}"
         outdir.mkdir(parents=True, exist_ok=True)
         outpath = outdir / f"part-{int(time.time())}.parquet"
+
         g.write_parquet(outpath)
-        logger.info(json.dumps({
-            "service":"builder","mode":INGEST_SOURCE,"msg":"parquet_written",
-            "date": folder, "rows": g.height, "path": str(outpath)
-        }))
+
+        logger.info(
+            f"[BUILDER] write_parquet path={outpath} rows={g.height} date={folder}"
+        )
         written += g.height
 
     return written
 
 
-def kafka_source() -> Iterable[Dict]:
-    from kafka import KafkaConsumer
-    c = KafkaConsumer(
-        KAFKA_TOPIC,
-        bootstrap_servers=KAFKA_BOOTSTRAP,
-        group_id=os.getenv("KAFKA_GROUP_ID", "builder-group"),
-        security_protocol=os.getenv("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT"),
-        enable_auto_commit=True,
-        auto_offset_reset="latest",
-        value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-    )
-    for m in c:
-        yield normalize(m.value)
-
 
 def filesystem_source() -> Iterable[Dict]:
+    """
+    Version tolérante :
+    - une ligne JSON cassée ne fait pas tomber tout le fichier.
+    - on ignore silencieusement les lignes invalides.
+    """
     for p in sorted(RAW_DIR.rglob("*.ndjson")):
         raw = p.read_bytes()
         if raw[:3] == codecs.BOM_UTF8:
@@ -136,22 +190,75 @@ def filesystem_source() -> Iterable[Dict]:
             line = line.strip()
             if not line:
                 continue
-            yield normalize(json.loads(line))
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                # on skippe juste la ligne
+                continue
+            yield normalize(obj)
+
+
+def rabbitmq_source(queue: str = RABBIT_QUEUE) -> Iterable[Dict]:
+    credentials = pika.PlainCredentials(RABBIT_USER, RABBIT_PASS)
+    parameters = pika.ConnectionParameters(
+        host=RABBIT_HOST,
+        port=RABBIT_PORT,
+        credentials=credentials,
+    )
+
+    max_attempts = 50
+    for attempt in range(max_attempts):
+        try:
+            connection = pika.BlockingConnection(parameters)
+            channel = connection.channel()
+            channel.queue_declare(queue=queue, durable=True)
+            print(f"[BUILDER] Connected to RabbitMQ at {RABBIT_HOST}:{RABBIT_PORT}")
+            break
+        except pika.exceptions.AMQPConnectionError:
+            print(
+                f"[BUILDER] RabbitMQ not ready, retry {attempt+1}/{max_attempts}..."
+            )
+            time.sleep(2)
+    else:
+        raise Exception(
+            f"[BUILDER] Cannot connect to RabbitMQ after {max_attempts} attempts"
+        )
+
+    try:
+        for method_frame, properties, body in channel.consume(
+            queue=queue, inactivity_timeout=1
+        ):
+            if body is None:
+                continue
+            try:
+                data = json.loads(body.decode("utf-8"))
+                yield normalize(data)
+                channel.basic_ack(method_frame.delivery_tag)
+            except Exception:
+                # on skippe le message sans log pour éviter le spam
+                continue
+    finally:
+        channel.cancel()
+        connection.close()
+
 
 def choose_source() -> Iterable[Dict]:
-    if INGEST_SOURCE == "kafka":
-        return kafka_source()
+    if INGEST_SOURCE == "rabbitmq":
+        return rabbitmq_source()
     if INGEST_SOURCE == "filesystem":
         return filesystem_source()
-    raise ValueError(f"INGEST_SOURCE must be 'kafka' or 'filesystem', got '{INGEST_SOURCE}'")
+    raise ValueError(
+        f"INGEST_SOURCE must be 'rabbitmq' or 'filesystem', got '{INGEST_SOURCE}'"
+    )
+
+
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    logger.remove()
-    logger.add(lambda m: print(m, end=""))
-    logger.info(json.dumps({"service":"builder","msg":"consumer_start","mode":INGEST_SOURCE,
-                            "kafka_bootstrap":KAFKA_BOOTSTRAP if INGEST_SOURCE=='kafka' else None,
-                            "topic":KAFKA_TOPIC if INGEST_SOURCE=='kafka' else None,
-                            "raw_dir": str(RAW_DIR.resolve()) if INGEST_SOURCE=='filesystem' else None}))
+    # un seul log de démarrage
+    print(
+        f"[BUILDER] start mode={INGEST_SOURCE} OUT_DIR={OUT_DIR} RAW_DIR={RAW_DIR} "
+        f"rabbit_host={RABBIT_HOST if INGEST_SOURCE=='rabbitmq' else None}"
+    )
 
     src = choose_source()
     batch, t0 = [], time.time()
@@ -160,26 +267,27 @@ def main():
         for rec in src:
             batch.append(rec)
             now = time.time()
-            if len(batch) >= BATCH_MAX_MSG or (now - t0) >= BATCH_MAX_SEC:
+
+            if (now - t0) >= BATCH_MAX_SEC:
                 try:
                     n = flush_batch(batch)
+                    logger.info(
+                        f"[BUILDER] batch_flushed batch_size={len(batch)} rows_written={n}"
+                    )
                 except Exception as e:
-                    logger.error(json.dumps(
-                        {"service": "builder", "mode": INGEST_SOURCE, "msg": "flush_failed", "error": str(e)}))
+                    logger.error(f"[BUILDER] flush_failed error={e}")
                     n = 0
-                logger.info(json.dumps(
-                    {"service": "builder", "mode": INGEST_SOURCE, "msg": "batch_flushed", "batch_size": len(batch),
-                     "rows_written": n}))
-                batch.clear();
+                batch.clear()
                 t0 = now
+
     except KeyboardInterrupt:
-        logger.info(json.dumps({"service": "builder", "msg": "shutdown_requested"}))
+        print("[BUILDER] shutdown_requested (KeyboardInterrupt)")
     finally:
         if batch:
             n = flush_batch(batch)
-            logger.info(json.dumps(
-                {"service": "builder", "mode": INGEST_SOURCE, "msg": "final_flush", "batch_size": len(batch),
-                 "rows_written": n}))
+            print(
+                f"[BUILDER] final_flush batch_size={len(batch)} rows_written={n}"
+            )
 
 
 if __name__ == "__main__":
