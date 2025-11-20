@@ -32,7 +32,7 @@ app.add_middleware(Middleware)
 app.include_router(health.router)
 app.include_router(data.router)
 app.include_router(metrics.router)
-app.include_router(market_route.router)
+app.include_router(symbols.router)
 """
 REMINDER : You must start your api path by : 
 - API (if you do something with the api, health, etc...)
