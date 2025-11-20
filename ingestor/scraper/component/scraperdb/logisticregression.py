@@ -32,11 +32,11 @@ def load_data(db_path: str, view_name: str) -> pd.DataFrame:
 
 def train_logistic_model(df: pd.DataFrame):
     if df.empty:
-        print("⚠️ La vue ml_features est vide, impossible d'entraîner le modèle.")
+        print("La vue ml_features est vide, impossible d'entraîner le modèle.")
         return None
 
     if "target_up" not in df.columns:
-        print("⚠️ La colonne 'target_up' n'existe pas dans la vue.")
+        print("La colonne 'target_up' n'existe pas dans la vue.")
         return None
     feature_cols = [
         "avg_volume",
@@ -50,7 +50,7 @@ def train_logistic_model(df: pd.DataFrame):
     y = df["target_up"].astype(int)
 
     if len(df) < 5:
-        print(f"⚠️ Trop peu de lignes pour entraîner un modèle (n={len(df)}).")
+        print(f" Trop peu de lignes pour entraîner un modèle (n={len(df)}).")
         return None
     X_train, X_test, y_train, y_test = train_test_split(
         X,
@@ -79,7 +79,7 @@ def train_logistic_model(df: pd.DataFrame):
 
 
 def main():
-    print(f"🔗 Chargement des données depuis {DB_PATH} / vue {VIEW_NAME}...")
+    print(f" Chargement des données depuis {DB_PATH} / vue {VIEW_NAME}...")
     df = load_data(DB_PATH, VIEW_NAME)
 
     print("Aperçu des données :")
@@ -90,7 +90,7 @@ def main():
     if model is None:
         sys.exit(1)
     joblib.dump(model, MODEL_PATH)
-    print(f"\n✅ Modèle sauvegardé dans : {MODEL_PATH}")
+    print(f"\n Modèle sauvegardé dans : {MODEL_PATH}")
     feature_cols = [
         "avg_volume",
         "avg_price",

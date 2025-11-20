@@ -67,28 +67,28 @@ def process_feed_article(df: pd.DataFrame) -> None:
 
     cursor = con.cursor()
 
-    # Récupération des symbols existants
-    cursor.execute("SELECT symbol FROM symbol")
-    existing_symbols = {row[0] for row in cursor.fetchall()}
-
-    # Récupération des ids déjà présents pour éviter les doublons
+    # Récupération des ids déjà présents pour éviter les doublons article
     cursor.execute("SELECT id FROM article")
     existing_ids = {row[0] for row in cursor.fetchall()}
 
     for _, row in df.iterrows():
         data = row.to_dict()
 
-        # Ignorer si symbol inexistant
-        if data["symbol"] not in existing_symbols:
-            print(f"Symbol {data['symbol']} inexistant, article ignoré")
-            continue
-
         # Ignorer si id déjà existant
         if data["id"] in existing_ids:
             print(f"Article {data['id']} déjà présent, ignoré")
             continue
 
-        # Insertion
+        symbol = data.get("symbol")
+        if not symbol:
+            print("Ligne sans symbol, ignorée")
+            continue
+        cursor.execute(
+            "INSERT IGNORE INTO symbol(symbol) VALUES (%s)",
+            (symbol,)
+        )
+
+        # Insertion article
         cursor.execute("""
             INSERT INTO article(
                 id, fetched_at, url, symbol, name, price, market_cap, volume_24h, coin_circulating
@@ -97,7 +97,7 @@ def process_feed_article(df: pd.DataFrame) -> None:
             data["id"],
             data["fetched_at"],
             data["url"],
-            data["symbol"],
+            symbol,
             data["name"],
             data["price"],
             data["market_cap"],
@@ -109,7 +109,6 @@ def process_feed_article(df: pd.DataFrame) -> None:
     con.close()
     print("Insertion terminée")
 
-
 def process_feed_delta(df: pd.DataFrame) -> None:
     con = db_connect()
     if con is None:
@@ -118,7 +117,7 @@ def process_feed_delta(df: pd.DataFrame) -> None:
 
     df = df[
         (df["delta"].notna()) &
-        (df["delta_pct"].notna()) &
+            (df["delta_pct"].notna()) &
         (df["delta"] != 0) &
         (df["delta_pct"] != 0)
     ]
