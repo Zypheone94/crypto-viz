@@ -2,6 +2,7 @@ import os, time, json, hashlib, pathlib, io, codecs, re
 from datetime import datetime, timezone
 from loguru import logger
 import polars as pl
+from algo import average
 
 RAW_DIR = pathlib.Path(os.getenv("RAW_DIR", "../data/raw"))
 OUT_DIR = pathlib.Path(os.getenv("OUT_DIR", "../data/clean/parquet"))
