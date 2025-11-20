@@ -25,6 +25,8 @@ services:
     build:
       context: .
       dockerfile: ingestor/scraper/component/scraperdb/Dockerfile
+    environment:
+      - PYTHONUNBUFFERED=1
     volumes:
       - .:/app
       - ./data:/data

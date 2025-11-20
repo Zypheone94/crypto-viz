@@ -1,4 +1,6 @@
-import sqlite3
+import math
+
+import mysql.connector
 from pathlib import Path
 import time
 import threading
@@ -9,7 +11,6 @@ from ingestor.builder.delta import main as delta
 DELTA_TIME = 3600
 ARTICLE_TIME = 60
 
-DB_PATH = Path("ingestor/scraper/component/scraperdb/data/ingestor.db")
 DELTA_PARQUET_DIR = Path("../../../../data/metrics/delta").resolve()
 ARTICLE_PARQUET_DIR = Path("../../../../data/clean/parquet").resolve()
 
@@ -29,40 +30,90 @@ def countdown(get_parquets_function, feed_table_function, duration: int ):
         df = get_parquets_function()
         feed_table_function(df)
 
-def db_connect(db_path: Path):
-    print(db_path)
+def db_connect():
     try:
-        con = sqlite3.connect(db_path, timeout=10)
+        con = mysql.connector.connect(
+            host="host.docker.internal",
+            user="ingestor_user",
+            password="password123",
+            database="ingestor")
+        print("Connected to database")
         return con
-    except sqlite3.OperationalError:
-        print("Could not connect to database")
+    except mysql.connector.Error as err:
+        print("Could not connect to database : ", err)
         return None
 
 def process_feed_article(df: pd.DataFrame) -> None:
-    con = db_connect(DB_PATH.absolute())
+    if df is None or df.empty:
+        print("Aucun data à traiter")
+        return
+
+    df['volume_24h'] = df['volume_24h'].astype(str).str.replace(',', '').str.strip()
+    df['coin_circulating'] = df['coin_circulating'].astype(str).str.replace(',', '').str.strip()
+
+    df['volume_24h'] = pd.to_numeric(df['volume_24h'], errors='coerce')
+    df['coin_circulating'] = pd.to_numeric(df['coin_circulating'], errors='coerce')
+
+    df = df.dropna(subset=['volume_24h', 'coin_circulating'])
+
+    if df.empty:
+        print("Aucun data valide après filtrage des nulls")
+        return
+
+    con = db_connect()
     if con is None:
         print("Erreur lors de la connexion à la base de donnée")
         return
 
     cursor = con.cursor()
 
-    for i, row in df.iterrows():
-        cursor.execute("SELECT 1 FROM article WHERE id = ?", (row["id"],))
+    # Récupération des symbols existants
+    cursor.execute("SELECT symbol FROM symbol")
+    existing_symbols = {row[0] for row in cursor.fetchall()}
 
-        if cursor.fetchone() is not None:
+    # Récupération des ids déjà présents pour éviter les doublons
+    cursor.execute("SELECT id FROM article")
+    existing_ids = {row[0] for row in cursor.fetchall()}
+
+    for _, row in df.iterrows():
+        data = row.to_dict()
+
+        # Ignorer si symbol inexistant
+        if data["symbol"] not in existing_symbols:
+            print(f"Symbol {data['symbol']} inexistant, article ignoré")
             continue
 
+        # Ignorer si id déjà existant
+        if data["id"] in existing_ids:
+            print(f"Article {data['id']} déjà présent, ignoré")
+            continue
+
+        # Insertion
         cursor.execute("""
-        INSERT INTO article(id, fetched_at, url, symbol, name, price, market_cap, volume_24h, coin_circulating)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                       (row["id"], row["fetched_at"], row["url"], row["symbol"], row["name"], row["price"], row["market_cap"], row["volume_24h"], row["coin_circulating"]))
-        con.commit()
+            INSERT INTO article(
+                id, fetched_at, url, symbol, name, price, market_cap, volume_24h, coin_circulating
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            data["id"],
+            data["fetched_at"],
+            data["url"],
+            data["symbol"],
+            data["name"],
+            data["price"],
+            data["market_cap"],
+            data["volume_24h"],
+            data["coin_circulating"],
+        ))
+
+    con.commit()
     con.close()
+    print("Insertion terminée")
+
 
 def process_feed_delta(df: pd.DataFrame) -> None:
-    con = db_connect(DB_PATH.absolute())
+    con = db_connect()
     if con is None:
-        print("impossible de se connecter à la base de données")
+        print("Impossible de se connecter à la base de données")
         return
 
     df = df[
@@ -70,17 +121,37 @@ def process_feed_delta(df: pd.DataFrame) -> None:
         (df["delta_pct"].notna()) &
         (df["delta"] != 0) &
         (df["delta_pct"] != 0)
-        ]
+    ]
+
+    if df.empty:
+        print("Aucune donnée delta à insérer")
+        return
 
     cursor = con.cursor()
 
-    for i, row in df.iterrows():
+    # Récupérer les symboles existants
+    cursor.execute("SELECT symbol FROM symbol")
+    existing_symbols = {row[0] for row in cursor.fetchall()}
+
+    # Ignorer les symboles inexistants pour éviter l'erreur de clé étrangère
+    df = df[df["symbol"].isin(existing_symbols)]
+
+    for _, row in df.iterrows():
         cursor.execute("""
-        INSERT INTO delta( symbol, date_start, date_end, window_label, delta, delta_pct)
-            VALUES(?, ?, ?, ?, ?, ?)
-        """, (row["symbol"], str(row["window_start"]), str(row["window_end"]), "1h", row["delta"], row["delta_pct"]))
-        con.commit()
+            INSERT INTO delta(symbol, date_start, date_end, window_label, delta, delta_pct)
+            VALUES(%s, %s, %s, %s, %s, %s)
+        """, (
+            row["symbol"],
+            str(row["window_start"]),
+            str(row["window_end"]),
+            "1h",
+            row["delta"],
+            row["delta_pct"]
+        ))
+
+    con.commit()
     con.close()
+
 def delta_feeder() -> None:
     windowed()
     delta()
@@ -109,8 +180,6 @@ def get_parquets(parquet_path: Path, type) -> pd.DataFrame | None:
 
 
 def main() -> None:
-    print(DB_PATH.absolute())
-
     thread_articles = threading.Thread(target=countdown, args=(lambda: get_parquets(ARTICLE_PARQUET_DIR, "article"), process_feed_article, ARTICLE_TIME))
     thread_delta = threading.Thread(target=countdown, args=(lambda: get_parquets(DELTA_PARQUET_DIR, "delta"), process_feed_delta, DELTA_TIME))
 

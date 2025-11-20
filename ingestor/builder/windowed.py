@@ -1,7 +1,7 @@
 import os
 import time
 import pathlib
-import sqlite3
+import mysql.connector
 
 import pandas as pd
 import polars as pl
@@ -20,20 +20,23 @@ METRICS_ROOT = pathlib.Path(
     os.getenv("METRICS_ROOT", "../../data/metrics/windowed")
 )
 
-
-
-
 def load_from_db() -> pl.LazyFrame:
     """
     Lit la table SQLite (article par défaut) et retourne un LazyFrame Polars
     avec colonnes: symbol (Utf8), ts (Datetime[UTC]), price (Float64).
     """
-    if not WAREHOUSE_DB.exists():
-        raise RuntimeError(f"WAREHOUSE_DB not found at {WAREHOUSE_DB}")
-
-    con = sqlite3.connect(str(WAREHOUSE_DB))
     try:
-        query = f"""
+        con = mysql.connector.connect(
+            host="host.docker.internal",
+            user="ingestor_user",
+            password="password123",
+            database="ingestor"
+        )
+    except Exception as e:
+        logger.error(f"Impossible de se connecter à MySQL : {e}")
+        return pl.DataFrame([]).lazy()
+
+    query = f"""
             SELECT
                 {SYMBOL_COL} AS symbol,
                 {TS_COL}     AS ts,
@@ -41,31 +44,40 @@ def load_from_db() -> pl.LazyFrame:
             FROM {SOURCE_TABLE}
             WHERE {TS_COL} IS NOT NULL
         """
-        pdf = pd.read_sql_query(query, con)
+
+    try:
+        cursor = con.cursor(dictionary=True)
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        pdf = pd.DataFrame(rows)
+    except Exception as e:
+        logger.error(f"Erreur SQL : {e}")
+        pdf = pd.DataFrame([])
     finally:
         con.close()
 
     if pdf.empty:
         return pl.DataFrame([]).lazy()
 
+    # conversion Polars
     df = pl.from_pandas(pdf)
+
+    df = df.with_columns([
+        pl.col("symbol").cast(pl.Utf8),
+        pl.col("price").cast(pl.Float64),
+    ])
+
+    # parse timestamp automatique
     df = df.with_columns(
-        [
-            pl.col("symbol").cast(pl.Utf8),
-            pl.col("price").cast(pl.Float64),
-        ]
-    )
-    ts_expr = (
-        pl.col("ts")
-        .cast(pl.Utf8)
-        .str.strptime(pl.Datetime, strict=False)
+        pl.col("ts").cast(pl.Utf8).str.strptime(pl.Datetime, strict=False).alias("ts")
     )
 
-    df = (
-        df.with_columns(ts_expr.alias("ts"))
-        .with_columns(pl.col("ts").dt.replace_time_zone("UTC"))
-        .filter(pl.col("ts").is_not_null())
+    # time zone
+    df = df.with_columns(
+        pl.col("ts").dt.replace_time_zone("UTC")
     )
+
+    df = df.filter(pl.col("ts").is_not_null())
 
     return df.lazy()
 
