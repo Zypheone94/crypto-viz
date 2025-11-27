@@ -4,19 +4,20 @@ import { TimeSeries } from './time-series';
 import { TrendingNowComponent } from './trending-now';
 import { EcartTypeGlissantComponent } from './ecart-type-glissant';
 import { RsiComponent } from './rsi';
+import { MovingAveragesComponent } from './moving-averages';
 import { MatIconModule } from '@angular/material/icon';
 
 @Component({
   selector: 'app-metrics-switcher',
   standalone: true,
-  imports: [CommonModule, TimeSeries, TrendingNowComponent, EcartTypeGlissantComponent, RsiComponent, MatIconModule],
+  imports: [CommonModule, TimeSeries, TrendingNowComponent, EcartTypeGlissantComponent, RsiComponent, MovingAveragesComponent, MatIconModule],
   templateUrl: './metrics-switcher.html',
   styleUrls: ['./time-series.css'],
 })
 export class MetricsSwitcherComponent {
-  view: 'timeseries' | 'trending' | 'ecartTypeGlissant' | 'rsi' = 'timeseries';
+  view: 'timeseries' | 'trending' | 'ecartTypeGlissant' | 'rsi' | 'movingAverages' = 'timeseries';
 
-  select(view: 'timeseries' | 'trending' | 'ecartTypeGlissant' | 'rsi') {
+  select(view: 'timeseries' | 'trending' | 'ecartTypeGlissant' | 'rsi' | 'movingAverages') {
     this.view = view;
   }
 }

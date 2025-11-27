@@ -32,6 +32,14 @@
     RSI
   </button>
 
+  <button
+    class="tab"
+    [class.active]="view === 'movingAverages'"
+    (click)="select('movingAverages')">
+    <mat-icon>moving</mat-icon>
+    Moyennes Mobiles
+  </button>
+
 </div>
 
 
@@ -56,5 +64,9 @@
   <app-rsi
     *ngIf="view === 'rsi'">
   </app-rsi>
+
+  <app-moving-averages
+    *ngIf="view === 'movingAverages'">
+  </app-moving-averages>
 
 </div>

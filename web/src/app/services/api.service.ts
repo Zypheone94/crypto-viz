@@ -10,7 +10,7 @@ import { TrendingItem } from '../shared/interface/trending-interface';
   providedIn: 'root',
 })
 export class ApiService {
-  public baseUrl = environment.production 
+  public baseUrl = environment.production
     ? `http://api:${environment.apiPort}`
     : `http://localhost:${environment.apiPort}`;
 
@@ -90,7 +90,7 @@ export class ApiService {
     date_to?: string;
   }): Observable<any> {
     let httpParams = new HttpParams();
-    
+
     if (params?.period) {
       httpParams = httpParams.set('period', String(params.period));
     }
@@ -106,7 +106,7 @@ export class ApiService {
     if (symbol) {
       httpParams = httpParams.set('symbol', symbol);
     }
-    
+
     const endpoint = symbol ? `/data/ecart-type/${symbol}` : '/data/ecart-type';
     return this.http.get(`${this.baseUrl}${endpoint}`, { params: httpParams })
       .pipe(
@@ -137,7 +137,7 @@ export class ApiService {
     date_to?: string;
   }): Observable<any> {
     let httpParams = new HttpParams();
-    
+
     if (params?.period) {
       httpParams = httpParams.set('period', String(params.period));
     }
@@ -170,7 +170,7 @@ export class ApiService {
     date_to?: string;
   }): Observable<any> {
     let httpParams = new HttpParams();
-    
+
     if (params?.period) {
       httpParams = httpParams.set('period', String(params.period));
     }
@@ -198,7 +198,7 @@ export class ApiService {
     limit?: number;
   }): Observable<any> {
     let httpParams = new HttpParams();
-    
+
     if (params?.period) {
       httpParams = httpParams.set('period', String(params.period));
     }
@@ -220,19 +220,19 @@ export class ApiService {
     // Generate mock rolling standard deviation data
     const data = [];
     const now = new Date();
-    
+
     for (let i = 30; i >= 0; i--) {
       const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
       const baseValue = 2.5;
       const volatility = Math.sin(i * 0.2) * 1.5 + Math.random() * 0.5;
-      
+
       data.push({
         timestamp: date.toISOString(),
         value: Math.max(0.1, baseValue + volatility),
         label: date.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' })
       });
     }
-    
+
     return {
       symbol: 'BTC',
       window_days: 14,
@@ -292,12 +292,12 @@ export class ApiService {
     // Generate mock time series RSI data for a specific symbol
     const timeSeries = [];
     const now = new Date();
-    
+
     for (let i = 20; i >= 0; i--) {
       const date = new Date(now.getTime() - i * 60 * 60 * 1000); // hourly data
       const baseRsi = 50;
       const rsi = Math.max(0, Math.min(100, baseRsi + Math.sin(i * 0.3) * 20 + (Math.random() - 0.5) * 10));
-      
+
       timeSeries.push({
         ts: date.toISOString(),
         price_usd: 40000 + Math.sin(i * 0.2) * 5000 + Math.random() * 1000,
@@ -339,11 +339,11 @@ export class ApiService {
     // Convert frontend parameters to API parameters
     const now = new Date();
     const to = now.toISOString();
-    
+
     // Calculate 'from' time based on baseline (e.g., "24h" -> 24 hours ago)
     const baselineHours = parseInt(params.baseline.replace('h', '')) || 24;
     const from = new Date(now.getTime() - (baselineHours * 60 * 60 * 1000)).toISOString();
-    
+
     // Convert window to bucket format
     const bucket = params.window === '1h' ? 'hour' : 'day';
 
@@ -371,6 +371,32 @@ export class ApiService {
     return this.http
       .get<any>(`${this.baseUrl}/api/market/stats`)
       .pipe(map((payload) => this.extractResponse(payload)));
+  }
+
+  getMovingAverages(params: {
+    from: string;
+    to: string;
+    window: number;
+    ma_type: string;
+    bucket: string;
+    symbol?: string;
+    limit?: number;
+  }): Observable<any> {
+    let httpParams = new HttpParams()
+      .set('from', params.from)
+      .set('to', params.to)
+      .set('window', String(params.window))
+      .set('ma_type', params.ma_type)
+      .set('bucket', params.bucket);
+
+    if (params.symbol) {
+      httpParams = httpParams.set('symbol', params.symbol);
+    }
+    if (params.limit) {
+      httpParams = httpParams.set('limit', String(params.limit));
+    }
+
+    return this.http.get<any>(`${this.baseUrl}/algo/moving-averages`, { params: httpParams });
   }
 
   private extractResponse<T = any>(payload: any): T {
