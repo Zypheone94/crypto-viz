@@ -89,6 +89,7 @@ def load_data_from_db(db_path: str | Path = None, limit: int = 1000) -> pl.DataF
     FROM article
     WHERE price IS NOT NULL
       AND symbol IS NOT NULL
+      AND volume_24h IS NOT NULL
     ORDER BY symbol, fetched_at
     LIMIT ?
     '''

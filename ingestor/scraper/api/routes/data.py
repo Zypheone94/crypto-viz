@@ -62,6 +62,7 @@ async def get_ecart_type_analysis(
         FROM article
         WHERE price IS NOT NULL
           AND symbol IS NOT NULL
+          AND volume_24h IS NOT NULL
         '''
         params = []
         
@@ -239,6 +240,7 @@ async def get_symbol_ecart_type_analysis(
         FROM article
         WHERE price IS NOT NULL
           AND symbol IS NOT NULL
+          AND volume_24h IS NOT NULL
           AND UPPER(symbol) = UPPER(?)
         '''
         params = [symbol]
@@ -471,6 +473,7 @@ async def get_rsi_analysis(
         FROM article
         WHERE price IS NOT NULL
           AND symbol IS NOT NULL
+          AND volume_24h IS NOT NULL
         '''
         
         if symbol:
@@ -629,6 +632,7 @@ async def get_symbol_rsi_analysis(
         FROM article
         WHERE price IS NOT NULL
           AND symbol IS NOT NULL
+          AND volume_24h IS NOT NULL
         '''
         
         if date_from:
