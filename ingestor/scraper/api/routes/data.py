@@ -1,12 +1,10 @@
 import sys
-import sqlite3
 from pathlib import Path as PathLib
 
 from fastapi import APIRouter, Query, Path
 from fastapi.responses import JSONResponse
 from api.utils.json_api_res_template import JsonApiTemplate
-
-# Add builder module to path for other imports if needed
+from api.utils.mysql_client import execute_query_polars
 builder_path = PathLib(__file__).parent.parent.parent.parent / "builder"
 sys.path.append(str(builder_path))
 
@@ -36,18 +34,6 @@ async def get_ecart_type_analysis(
     - date_from/date_to: Filter by date range (optional)
     """
     try:
-        # Use container database path
-        db_path = PathLib("/app/ingestor/scraper/component/scraperdb/data/ingestor.db")
-        
-        # Check if database exists
-        if not db_path.exists():
-            response = ApiResponse._create_response(
-                level="error",
-                msg=f"Database not found at {db_path}",
-                response=[]
-            )
-            return JSONResponse(content=response, status_code=500)
-        
         # Load data with filters
         import polars as pl
         
@@ -68,24 +54,23 @@ async def get_ecart_type_analysis(
         
         # Add symbol filter
         if symbol:
-            query += " AND UPPER(symbol) = UPPER(?)"
+            query += " AND UPPER(symbol) = UPPER(%s)"
             params.append(symbol)
         
         # Add date range filters
         if date_from:
-            query += " AND DATE(fetched_at) >= ?"
+            query += " AND DATE(fetched_at) >= %s"
             params.append(date_from)
         
         if date_to:
-            query += " AND DATE(fetched_at) <= ?"
+            query += " AND DATE(fetched_at) <= %s"
             params.append(date_to)
         
-        query += " ORDER BY symbol, fetched_at LIMIT ?"
+        query += " ORDER BY symbol, fetched_at LIMIT %s"
         params.append(limit)
         
-        # Load filtered data
-        with sqlite3.connect(str(db_path)) as con:
-            df = pl.read_database(query, con, execute_options={"parameters": params})
+        # Load filtered data using MySQL
+        df = execute_query_polars(query, params)
         
         if df.height == 0:
             response = ApiResponse._create_response(
@@ -224,9 +209,6 @@ async def get_symbol_ecart_type_analysis(
     Supports date range filtering.
     """
     try:
-        # Use container database path
-        db_path = PathLib("/app/ingestor/scraper/component/scraperdb/data/ingestor.db")
-        
         # Load data with symbol and date filters
         import polars as pl
         
@@ -241,25 +223,24 @@ async def get_symbol_ecart_type_analysis(
         WHERE price IS NOT NULL
           AND symbol IS NOT NULL
           AND volume_24h IS NOT NULL
-          AND UPPER(symbol) = UPPER(?)
+          AND UPPER(symbol) = UPPER(%s)
         '''
         params = [symbol]
         
         # Add date range filters
         if date_from:
-            query += " AND DATE(fetched_at) >= ?"
+            query += " AND DATE(fetched_at) >= %s"
             params.append(date_from)
         
         if date_to:
-            query += " AND DATE(fetched_at) <= ?"
+            query += " AND DATE(fetched_at) <= %s"
             params.append(date_to)
         
-        query += " ORDER BY fetched_at LIMIT ?"
+        query += " ORDER BY fetched_at LIMIT %s"
         params.append(limit)
         
-        # Load filtered data
-        with sqlite3.connect(str(db_path)) as con:
-            df = pl.read_database(query, con, execute_options={"parameters": params})
+        # Load filtered data using MySQL
+        df = execute_query_polars(query, params)
         
         if df.height == 0:
             response = ApiResponse._create_response(
@@ -444,21 +425,8 @@ async def get_rsi_analysis(
     - Momentum strength indicators
     """
     try:
-        # Use container database path
-        db_path = PathLib("/app/ingestor/scraper/component/scraperdb/data/ingestor.db")
-        
-        # Check if database exists
-        if not db_path.exists():
-            response = ApiResponse._create_response(
-                level="error",
-                msg=f"Database not found at {db_path}",
-                response=[]
-            )
-            return JSONResponse(content=response, status_code=500)
-        
         # Load and filter data
         import polars as pl
-        import sqlite3
         
         query_conditions = []
         query_params = []
@@ -477,22 +445,21 @@ async def get_rsi_analysis(
         '''
         
         if symbol:
-            query_conditions.append("AND UPPER(symbol) = ?")
-            query_params.append(symbol.upper())
+            query_conditions.append("AND UPPER(symbol) = UPPER(%s)")
+            query_params.append(symbol)
         
         if date_from:
-            query_conditions.append("AND DATE(fetched_at) >= ?")
+            query_conditions.append("AND DATE(fetched_at) >= %s")
             query_params.append(date_from)
         
         if date_to:
-            query_conditions.append("AND DATE(fetched_at) <= ?")
+            query_conditions.append("AND DATE(fetched_at) <= %s")
             query_params.append(date_to)
         
-        final_query = base_query + " " + " ".join(query_conditions) + " ORDER BY symbol, fetched_at LIMIT ?"
+        final_query = base_query + " " + " ".join(query_conditions) + " ORDER BY symbol, fetched_at LIMIT %s"
         query_params.append(limit)
         
-        with sqlite3.connect(str(db_path)) as con:
-            df = pl.read_database(final_query, con, execute_options={"parameters": query_params})
+        df = execute_query_polars(final_query, query_params)
         
         if df.height == 0:
             response = ApiResponse._create_response(
@@ -604,22 +571,10 @@ async def get_symbol_rsi_analysis(
     - Time series data for charting
     """
     try:
-        # Use container database path
-        db_path = PathLib("/app/ingestor/scraper/component/scraperdb/data/ingestor.db")
-        
-        if not db_path.exists():
-            response = ApiResponse._create_response(
-                level="error",
-                msg=f"Database not found at {db_path}",
-                response=[]
-            )
-            return JSONResponse(content=response, status_code=500)
-        
         # Load and filter data for specific symbol
         import polars as pl
-        import sqlite3
         
-        query_conditions = ["AND UPPER(symbol) = ?"]
+        query_conditions = ["AND UPPER(symbol) = %s"]
         query_params = [symbol.upper()]
         
         base_query = '''
@@ -636,18 +591,17 @@ async def get_symbol_rsi_analysis(
         '''
         
         if date_from:
-            query_conditions.append("AND DATE(fetched_at) >= ?")
+            query_conditions.append("AND DATE(fetched_at) >= %s")
             query_params.append(date_from)
         
         if date_to:
-            query_conditions.append("AND DATE(fetched_at) <= ?")
+            query_conditions.append("AND DATE(fetched_at) <= %s")
             query_params.append(date_to)
         
-        final_query = base_query + " " + " ".join(query_conditions) + " ORDER BY fetched_at LIMIT ?"
+        final_query = base_query + " " + " ".join(query_conditions) + " ORDER BY fetched_at LIMIT %s"
         query_params.append(limit)
         
-        with sqlite3.connect(str(db_path)) as con:
-            df = pl.read_database(final_query, con, execute_options={"parameters": query_params})
+        df = execute_query_polars(final_query, query_params)
         
         if df.height == 0:
             response = ApiResponse._create_response(
@@ -927,7 +881,7 @@ async def get_cross_correlation(
 async def get_available_symbols_endpoint():
     """
     Get list of available symbols for cross-correlation analysis.
-    Uses SQLite database (ingestor.db).
+    Uses MySQL database (crypto_viz).
     """
     try:
         # Import the analysis module

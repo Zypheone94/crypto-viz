@@ -1,6 +1,11 @@
 import polars as pl
 import sqlite3
+import sys
 from pathlib import Path
+
+# Import MySQL client utilities
+sys.path.append(str(Path(__file__).parent.parent / "utils"))
+from mysql_client import load_symbol_data
 
 
 def build_ecart_type(df: pl.DataFrame, period: int = 14) -> pl.DataFrame:
@@ -72,44 +77,16 @@ def build_ecart_type(df: pl.DataFrame, period: int = 14) -> pl.DataFrame:
 
 
 def load_data_from_db(db_path: str | Path = None, limit: int = 1000) -> pl.DataFrame:
-    if db_path is None:
-        db_path = Path(__file__).parent.parent / "scraper/component/scraperdb/data/ingestor.db"
-    db_path = Path(db_path)
-
-    if not db_path.exists():
-        raise FileNotFoundError(f"SQLite DB not found at {db_path}")
-
-    query = '''
-    SELECT
-        symbol,
-        price as price_usd,
-        fetched_at as ts,
-        name as title,
-        url as source
-    FROM article
-    WHERE price IS NOT NULL
-      AND symbol IS NOT NULL
-      AND volume_24h IS NOT NULL
-    ORDER BY symbol, fetched_at
-    LIMIT ?
-    '''
-
+    """
+    Load cryptocurrency data from MySQL database for écart-type analysis.
+    Note: db_path parameter is kept for compatibility but not used with MySQL.
+    """
     try:
-        with sqlite3.connect(str(db_path)) as con:
-            df = pl.read_database(query, con, execute_options={"parameters": [limit]})
-
-        if df.height == 0:
-            return df
-
-        df = df.with_columns([
-            pl.col("price_usd").cast(pl.Float64),
-            pl.col("ts").str.to_datetime(time_zone="UTC")  # ISO format auto-detection
-        ])
-
+        # Use the MySQL client to load data
+        df = load_symbol_data(symbol=None, limit=limit)
         return df
-
-    except sqlite3.OperationalError as e:
-        raise sqlite3.OperationalError(f"Database error: {e}")
+    except Exception as e:
+        raise Exception(f"MySQL database error: {e}")
 def calculate_ecart_type_analysis(period: int = 14, limit: int = 1000, db_path: str | Path = None) -> dict:
     df = load_data_from_db(db_path, limit)
     
@@ -166,25 +143,29 @@ def calculate_ecart_type_analysis(period: int = 14, limit: int = 1000, db_path: 
 
 
 def get_symbol_analysis(symbol: str, period: int = 14, limit: int = 1000, db_path: str | Path = None) -> dict:
-    df = load_data_from_db(db_path, limit)
-    
-    if df.height == 0:
+    """
+    Get écart-type analysis for a specific symbol using MySQL.
+    Note: db_path parameter is kept for compatibility but not used with MySQL.
+    """
+    try:
+        # Load data directly for the specific symbol using MySQL client
+        df = load_symbol_data(symbol=symbol, limit=limit)
+
+        if df.height == 0:
+            return {
+                "success": False,
+                "message": f"No data found for symbol {symbol}",
+                "data": None
+            }
+        
+        # Calculate écart-type analysis
+        results = build_ecart_type(df, period=period)
+    except Exception as e:
         return {
             "success": False,
-            "message": "No data available",
+            "message": f"Database error: {str(e)}",
             "data": None
         }
-    
-    symbol_df = df.filter(pl.col("symbol") == symbol.upper())
-    
-    if symbol_df.height == 0:
-        return {
-            "success": False,
-            "message": f"No data found for symbol {symbol}",
-            "data": None
-        }
-    
-    results = build_ecart_type(symbol_df, period=period)
     
     if results.height == 0:
         return {

@@ -1,6 +1,10 @@
 import polars as pl
 import sqlite3
 from pathlib import Path
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scraper', 'api', 'utils'))
+from mysql_client import get_mysql_connection, load_symbol_data
 
 
 def build_rsi(df: pl.DataFrame, period: int = 14) -> pl.DataFrame:
@@ -99,14 +103,7 @@ def build_rsi(df: pl.DataFrame, period: int = 14) -> pl.DataFrame:
 
 
 def load_data_from_db(db_path: str | Path = None, limit: int = 1000) -> pl.DataFrame:
-    """Load data from SQLite database for RSI analysis."""
-    if db_path is None:
-        db_path = Path(__file__).parent.parent / "scraper/component/scraperdb/data/ingestor.db"
-    db_path = Path(db_path)
-
-    if not db_path.exists():
-        raise FileNotFoundError(f"SQLite DB not found at {db_path}")
-
+    """Load data from MySQL database for RSI analysis."""
     query = '''
     SELECT
         symbol,
@@ -116,14 +113,14 @@ def load_data_from_db(db_path: str | Path = None, limit: int = 1000) -> pl.DataF
         source
     FROM article
     WHERE price IS NOT NULL
-      AND symbol IS NOT NULL
+      AND symbol IS NOT NULL  
+      AND volume_24h IS NOT NULL
     ORDER BY symbol, date
-    LIMIT ?
+    LIMIT %s
     '''
 
     try:
-        with sqlite3.connect(str(db_path)) as con:
-            df = pl.read_database(query, con, execute_options={"parameters": [limit]})
+        df = load_symbol_data(query, [limit])
 
         if df.height == 0:
             return df
@@ -135,8 +132,8 @@ def load_data_from_db(db_path: str | Path = None, limit: int = 1000) -> pl.DataF
 
         return df
 
-    except sqlite3.OperationalError as e:
-        raise sqlite3.OperationalError(f"Database error: {e}")
+    except Exception as e:
+        raise Exception(f"Database error: {e}")
 
 
 def calculate_rsi_analysis(period: int = 14, limit: int = 1000, db_path: str | Path = None) -> dict:

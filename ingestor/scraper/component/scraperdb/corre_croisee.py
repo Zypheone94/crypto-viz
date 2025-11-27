@@ -1,35 +1,21 @@
 """
 Module de corrélation croisée normalisée pour l'analyse crypto.
 Utilise numpy.correlate pour calculer la corrélation entre volume et prix.
-Utilise SQLite (ingestor.db) comme base de données.
+Utilise MySQL comme base de données.
 """
 
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Any
-import sqlite3
-from pathlib import Path
 
-
-def get_db_path() -> Path:
-    """Retourne le chemin vers la base de données SQLite."""
-    # Chemin dans Docker
-    docker_path = Path("/app/ingestor/scraper/component/scraperdb/data/ingestor.db")
-    if docker_path.exists():
-        return docker_path
-    
-    # Chemin local (relatif au fichier)
-    local_path = Path(__file__).parent / "data" / "ingestor.db"
-    if local_path.exists():
-        return local_path
-    
-    raise FileNotFoundError(f"Base de données non trouvée: {docker_path} ou {local_path}")
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'api', 'utils'))
+from mysql_client import get_mysql_connection, execute_query_pandas
 
 
 def get_db_connection():
-    """Connexion SQLite."""
-    db_path = get_db_path()
-    return sqlite3.connect(str(db_path))
+    return get_mysql_connection()
 
 
 def get_correlation_strength(correlation: float) -> str:
@@ -78,19 +64,16 @@ def analyze_symbol(symbol: str, max_lag: int = 12) -> Dict[str, Any]:
     Utilise numpy.correlate avec normalisation Z-score.
     """
     try:
-        conn = get_db_connection()
-        
         query = """
             SELECT fetched_at, price, volume_24h
             FROM article
-            WHERE symbol = ?
+            WHERE symbol = %s
             AND price IS NOT NULL
             AND volume_24h IS NOT NULL
             ORDER BY fetched_at ASC
         """
         
-        df = pd.read_sql_query(query, conn, params=(symbol.upper(),))
-        conn.close()
+        df = execute_query_pandas(query, [symbol.upper()])
         
         if len(df) < 10:
             return {
@@ -172,8 +155,6 @@ def analyze_multiple_symbols(symbols: Optional[List[str]] = None, max_lag: int =
     """Analyse la corrélation croisée pour plusieurs symboles."""
     try:
         if symbols is None:
-            conn = get_db_connection()
-            
             query = """
                 SELECT symbol, COUNT(*) as count
                 FROM article
@@ -181,15 +162,11 @@ def analyze_multiple_symbols(symbols: Optional[List[str]] = None, max_lag: int =
                 GROUP BY symbol
                 HAVING count > 10
                 ORDER BY count DESC
-                LIMIT ?
+                LIMIT %s
             """
             
-            cursor = conn.cursor()
-            cursor.execute(query, (limit,))
-            rows = cursor.fetchall()
-            conn.close()
-            
-            symbols = [row[0] for row in rows]
+            df_symbols = execute_query_pandas(query, [limit])
+            symbols = df_symbols['symbol'].tolist()
         
         results = []
         for symbol in symbols:
@@ -207,8 +184,6 @@ def analyze_multiple_symbols(symbols: Optional[List[str]] = None, max_lag: int =
 def get_available_symbols() -> List[Dict[str, Any]]:
     """Récupère la liste des symboles disponibles pour l'analyse."""
     try:
-        conn = get_db_connection()
-        
         query = """
             SELECT symbol, COUNT(*) as data_points
             FROM article
@@ -218,12 +193,8 @@ def get_available_symbols() -> List[Dict[str, Any]]:
             ORDER BY data_points DESC
         """
         
-        cursor = conn.cursor()
-        cursor.execute(query)
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [{"symbol": row[0], "data_points": row[1]} for row in rows]
+        df_symbols = execute_query_pandas(query)
+        return [{"symbol": row[0], "data_points": row[1]} for _, row in df_symbols.iterrows()]
         
     except FileNotFoundError as e:
         return [{"error": str(e)}]
