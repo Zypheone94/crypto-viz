@@ -60,4 +60,4 @@ print(y_proba)
 print("Classe prédite :", model.predict(X.head()))
 MODEL_PATH = "./data/logistic_model.pkl"
 joblib.dump(model, MODEL_PATH)
-print(f"\n✅ Modèle sauvegardé dans {MODEL_PATH}")
+print(f"\n Modèle sauvegardé dans {MODEL_PATH}")

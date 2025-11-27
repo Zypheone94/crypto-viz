@@ -7,6 +7,7 @@
   display: flex;
   gap: 8px;
   margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 .tab {
   border: 1px solid #ddd;
@@ -14,6 +15,13 @@
   padding: 8px 12px;
   border-radius: 8px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+.tab:hover {
+  background: #f0f0f0;
 }
 .tab.active {
   background: #111827;
@@ -22,4 +30,287 @@
 }
 .panel {
   min-height: 420px; /* évite le "jump" lors du switch */
+}
+
+/* Time Series Chart Styles */
+.data-container {
+  padding: 20px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.chart-header {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.chart-header h3 {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.chart-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.chart-wrapper {
+  position: relative;
+  height: 400px;
+  width: 100%;
+  margin-top: 16px;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+}
+
+.loading-container p {
+  margin-top: 16px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.error-container {
+  padding: 20px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.error-message {
+  color: #dc2626;
+  font-size: 14px;
+  margin: 0;
+}
+
+.no-result-container {
+  padding: 40px;
+  text-align: center;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px dashed #d1d5db;
+}
+
+.no-result-container p {
+  color: #6b7280;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Top Gainers/Losers Styles */
+.top-gainers, .top-losers {
+  padding: 16px;
+}
+
+.header {
+  margin-bottom: 20px;
+}
+
+.header h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.subtitle {
+  color: #666;
+  margin: 0;
+  font-size: 14px;
+}
+
+.gainers-grid, .losers-grid {
+  display: block;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+  .gainers-grid, .losers-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.table-section {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  margin: 0 auto;
+  max-width: 100%;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  text-align: center;
+  padding: 12px 8px;
+  border-bottom: 2px solid #e9ecef;
+  font-size: 14px;
+}
+
+.table th:first-child {
+  text-align: left;
+}
+
+.table td {
+  padding: 12px 8px;
+  border-bottom: 1px solid #e9ecef;
+  text-align: center;
+}
+
+.table td:first-child {
+  text-align: left;
+}
+
+.crypto-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rank {
+  background: #e9ecef;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #495057;
+}
+
+.crypto-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.symbol {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.name {
+  font-size: 12px;
+  color: #666;
+}
+
+.price {
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
+.change-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.change.positive {
+  color: #00c853;
+}
+
+.change.negative {
+  color: #d32f2f;
+}
+
+.change-value, .change-percent {
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+}
+
+.change-percent {
+  font-size: 12px;
+}
+
+.volume, .market-cap {
+  font-family: 'Courier New', monospace;
+  color: #666;
+}
+
+.chart-section {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+}
+
+.chart-section h3 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.chart-container {
+  height: 300px;
+  position: relative;
+}
+
+.stats-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.stat-card {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stat-card mat-icon {
+  background: #f0f0f0;
+  border-radius: 50%;
+  padding: 8px;
+  font-size: 20px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  gap: 16px;
 }

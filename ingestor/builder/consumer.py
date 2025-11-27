@@ -141,6 +141,10 @@ def flush_batch(batch: List[Dict]) -> int:
             "coin_circulating",
             "date",
         ]
+    ).filter(
+        pl.col("price").is_not_null()
+        & pl.col("volume_24h").is_not_null()
+        & pl.col("coin_circulating").is_not_null()
     )
     try:
         symbols = (
@@ -193,7 +197,6 @@ def filesystem_source() -> Iterable[Dict]:
             try:
                 obj = json.loads(line)
             except json.JSONDecodeError:
-                # on skippe juste la ligne
                 continue
             yield normalize(obj)
 
@@ -235,7 +238,6 @@ def rabbitmq_source(queue: str = RABBIT_QUEUE) -> Iterable[Dict]:
                 yield normalize(data)
                 channel.basic_ack(method_frame.delivery_tag)
             except Exception:
-                # on skippe le message sans log pour éviter le spam
                 continue
     finally:
         channel.cancel()
@@ -254,7 +256,7 @@ def choose_source() -> Iterable[Dict]:
 
 def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    # un seul log de démarrage
+    REJECT_DIR.mkdir(parents=True, exist_ok=True)
     print(
         f"[BUILDER] start mode={INGEST_SOURCE} OUT_DIR={OUT_DIR} RAW_DIR={RAW_DIR} "
         f"rabbit_host={RABBIT_HOST if INGEST_SOURCE=='rabbitmq' else None}"
