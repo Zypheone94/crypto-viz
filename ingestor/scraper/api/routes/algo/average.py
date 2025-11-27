@@ -65,22 +65,33 @@ def _load_bucketed_prices(
     from_str = dt_from.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
     to_str = dt_to.replace(tzinfo=None).strftime("%Y-%m-%d %H:%M:%S")
 
+    # Utiliser une approche sans STR_TO_DATE dans le SELECT pour éviter les problèmes de %
     if bucket == "hour":
-        bucket_sql = "DATE_FORMAT(STR_TO_DATE(SUBSTRING(fetched_at, 1, 19), '%Y-%m-%dT%H:%i:%s'), '%Y-%m-%dT%H:00:00')"
+        sql = """
+            SELECT DATE_FORMAT(fetched_at, '%Y-%m-%dT%H:00:00') AS t, 
+                   AVG(price) AS price
+            FROM article
+            WHERE LOWER(symbol) = LOWER(%s)
+              AND price IS NOT NULL
+              AND fetched_at IS NOT NULL
+              AND fetched_at >= %s
+              AND fetched_at <= %s
+            GROUP BY t
+            ORDER BY t ASC
+        """
     else:
-        bucket_sql = "DATE_FORMAT(STR_TO_DATE(SUBSTRING(fetched_at, 1, 19), '%Y-%m-%dT%H:%i:%s'), '%Y-%m-%dT00:00:00')"
-
-    sql = f"""
-        SELECT {bucket_sql} AS t, AVG(price) AS price
-        FROM article
-        WHERE LOWER(symbol) = LOWER(%s)
-          AND price IS NOT NULL
-          AND fetched_at IS NOT NULL
-          AND STR_TO_DATE(SUBSTRING(fetched_at, 1, 19), '%Y-%m-%dT%H:%i:%s') >= %s
-          AND STR_TO_DATE(SUBSTRING(fetched_at, 1, 19), '%Y-%m-%dT%H:%i:%s') <= %s
-        GROUP BY t
-        ORDER BY t ASC
-    """
+        sql = """
+            SELECT DATE_FORMAT(fetched_at, '%Y-%m-%dT00:00:00') AS t, 
+                   AVG(price) AS price
+            FROM article
+            WHERE LOWER(symbol) = LOWER(%s)
+              AND price IS NOT NULL
+              AND fetched_at IS NOT NULL
+              AND fetched_at >= %s
+              AND fetched_at <= %s
+            GROUP BY t
+            ORDER BY t ASC
+        """
 
     cursor = con.cursor()
     cursor.execute(sql, (symbol, from_str, to_str))
@@ -112,13 +123,13 @@ def availability(symbol: str | None = Query(None)):
         where = "WHERE symbol = %s"
         params.append(symbol)
     
-    query = f"""
+    query = """
         SELECT symbol,
                COUNT(*) AS cnt,
-               MIN(STR_TO_DATE(SUBSTRING(fetched_at, 1, 19), '%Y-%m-%dT%H:%i:%s')) AS first_ts,
-               MAX(STR_TO_DATE(SUBSTRING(fetched_at, 1, 19), '%Y-%m-%dT%H:%i:%s')) AS last_ts
+               MIN(fetched_at) AS first_ts,
+               MAX(fetched_at) AS last_ts
         FROM article
-        {where}
+        """ + where + """
         GROUP BY symbol
         ORDER BY cnt DESC
     """
