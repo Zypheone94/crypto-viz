@@ -200,15 +200,17 @@
 
 /* === SIDEBAR MODERNE POUR FILTRES === */
 .filters-sidebar {
-  width: 320px;
-  background: rgba(255, 255, 255, 0.9);
+  width: 280px;
+  max-width: 300px;
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(20px);
   border-right: 1px solid rgba(255, 255, 255, 0.2);
   overflow-y: auto;
+  max-height: calc(100vh - 70px);
   transition: all 0.3s ease;
 
   .filters-content {
-    padding: 25px;
+    padding: 12px;
 
     .filter-category {
       margin-bottom: 35px;

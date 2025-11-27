@@ -1,1 +1,149 @@
-<p>home works!</p>
+<div class="home-container">
+  <section class="hero-section">
+    <div class="hero-content">
+      <h1 class="hero-title">
+        <mat-icon class="hero-icon">candlestick_chart</mat-icon>
+        Tableau de bord CryptoViz
+      </h1>
+      <p class="hero-description">
+        Visualisez en un coup d'œil la santé de votre pipeline crypto : séries temporelles,
+        volatilité glissante, signaux RSI et tendances médias agrégées.
+      </p>
+      <div class="hero-features" *ngIf="featureTags.length; else featureFallback">
+        <span class="feature-tag" *ngFor="let feature of featureTags">
+          <mat-icon>{{ feature.icon }}</mat-icon>
+          <div class="feature-meta">
+            <span class="feature-value">{{ feature.value }}</span>
+            <span class="feature-label">{{ feature.label }}</span>
+          </div>
+        </span>
+      </div>
+      <ng-template #featureFallback>
+        <p class="hero-placeholder">{{ overviewError || 'Chargement des indicateurs en direct...' }}</p>
+      </ng-template>
+    </div>
+  </section>
+
+  <section class="stats-section">
+    <h2 class="section-title">
+      <mat-icon>insights</mat-icon>
+      Indicateurs clés
+    </h2>
+
+    <ng-container *ngIf="statCards.length; else statsFallback">
+      <div class="stats-grid">
+        <mat-card class="stat-card" *ngFor="let metric of statCards" [style.border-left-color]="metric.accent">
+          <mat-card-content>
+            <div class="stat-header">
+              <div class="stat-icon" [style.background]="metric.iconBg">
+                <mat-icon>{{ metric.icon }}</mat-icon>
+              </div>
+              <span class="stat-trend" [class.positive]="(metric.trendValue ?? 0) > 0" [class.negative]="(metric.trendValue ?? 0) < 0">{{ metric.trend }}</span>
+            </div>
+            <div class="stat-main">
+              <p class="stat-value">{{ metric.value }}</p>
+              <p class="stat-title">{{ metric.title }}</p>
+              <p class="stat-description">{{ metric.description }}</p>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </ng-container>
+    <ng-template #statsFallback>
+      <div class="empty-state">
+        {{ overviewError || "Impossible d'afficher les indicateurs pour le moment." }}
+      </div>
+    </ng-template>
+  </section>
+
+  <section class="market-tables-section">
+    <h2 class="section-title">
+      <mat-icon>query_stats</mat-icon>
+      Marché en bref
+    </h2>
+    <div class="tables-grid">
+      <div class="table-container">
+        <div class="table-header">
+          <h3>Top Gainers (24h)</h3>
+          <span class="table-subtitle" *ngIf="dataTimestamp">MAJ {{ dataTimestamp | date:'short' }}</span>
+        </div>
+        <ng-container *ngIf="!isMoversLoading; else moversLoading">
+          <ng-container *ngIf="topGainers.length; else noGainers">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Actif</th>
+                  <th>Prix</th>
+                  <th>Δ 24h</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let mover of topGainers">
+                  <td>{{ mover.name }} ({{ mover.symbol }})</td>
+                  <td>{{ mover.price }}</td>
+                  <td class="stat-change" [class.positive]="mover.changeValue > 0" [class.negative]="mover.changeValue < 0">
+                    {{ mover.changeLabel }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </ng-container>
+        </ng-container>
+      </div>
+
+      <div class="table-container">
+        <div class="table-header">
+          <h3>Top Losers (24h)</h3>
+          <span class="table-subtitle" *ngIf="dataTimestamp">MAJ {{ dataTimestamp | date:'short' }}</span>
+        </div>
+        <ng-container *ngIf="!isMoversLoading; else moversLoading">
+          <ng-container *ngIf="topLosers.length; else noLosers">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Actif</th>
+                  <th>Prix</th>
+                  <th>Δ 24h</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let mover of topLosers">
+                  <td>{{ mover.name }} ({{ mover.symbol }})</td>
+                  <td>{{ mover.price }}</td>
+                  <td class="stat-change" [class.positive]="mover.changeValue > 0" [class.negative]="mover.changeValue < 0">
+                    {{ mover.changeLabel }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </ng-container>
+        </ng-container>
+      </div>
+    </div>
+
+    <ng-template #moversLoading>
+      <div class="empty-state">Chargement des variations du marché...</div>
+    </ng-template>
+    <ng-template #noGainers>
+      <div class="empty-state">{{ moversError || 'Aucun gainer disponible pour cette période.' }}</div>
+    </ng-template>
+    <ng-template #noLosers>
+      <div class="empty-state">{{ moversError || 'Aucun loser disponible pour cette période.' }}</div>
+    </ng-template>
+  </section>
+
+  <section class="actions-section">
+    <h2 class="section-title">
+      <mat-icon>space_dashboard</mat-icon>
+      Raccourcis
+    </h2>
+    <div class="actions-grid">
+      <a class="action-card" *ngFor="let action of quickActions" [routerLink]="action.route">
+        <mat-icon>{{ action.icon }}</mat-icon>
+        <h3>{{ action.title }}</h3>
+        <p>{{ action.description }}</p>
+      </a>
+    </div>
+  </section>
+
+</div>
