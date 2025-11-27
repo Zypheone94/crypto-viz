@@ -853,3 +853,112 @@ async def get_news_articles(
             response={"error_details": error_details.split('\n')[-3:-1]}
         )
         return JSONResponse(content=response, status_code=500)
+
+
+@router.get("/cross-correlation")
+async def get_cross_correlation(
+    symbol: str = Query(None, description="Cryptocurrency symbol (e.g., BTC, ETH). If not provided, analyzes top symbols."),
+    max_lag: int = Query(12, ge=1, le=50, description="Maximum lag periods to analyze"),
+    limit: int = Query(10, ge=1, le=50, description="Number of symbols to analyze if no specific symbol provided")
+):
+    """
+    Calculate cross-correlation between volume and price.
+    
+    This endpoint analyzes the relationship between trading volume and price changes
+    to identify if volume can predict price movements (or vice versa).
+    
+    Returns:
+    - correlations: Dictionary of lag -> correlation value
+    - optimal_lag: The lag with strongest correlation
+    - interpretation: Human-readable explanation of the result
+    """
+    try:
+        # Import the analysis module
+        scraperdb_path = PathLib(__file__).parent.parent.parent / "component" / "scraperdb"
+        sys.path.insert(0, str(scraperdb_path))
+        
+        from corre_croisee import analyze_symbol, analyze_multiple_symbols
+        
+        if symbol:
+            # Analyze specific symbol
+            result = analyze_symbol(symbol.upper(), max_lag=max_lag)
+            
+            if "error" in result:
+                response = ApiResponse._create_response(
+                    level="warning",
+                    msg=result["error"],
+                    response=result
+                )
+                return JSONResponse(content=response, status_code=200)
+            
+            response = ApiResponse._create_response(
+                level="info",
+                msg=f"Cross-correlation analysis for {symbol.upper()}",
+                response=result
+            )
+        else:
+            # Analyze multiple symbols
+            results = analyze_multiple_symbols(max_lag=max_lag)[:limit]
+            
+            response = ApiResponse._create_response(
+                level="info",
+                msg=f"Cross-correlation analysis for {len(results)} symbols",
+                response={"symbols": results}
+            )
+        
+        return JSONResponse(content=response, status_code=200)
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        response = ApiResponse._create_response(
+            level="error",
+            msg=f"Cross-correlation analysis failed: {str(e)}",
+            response={"error_details": error_details.split('\n')[-3:-1]}
+        )
+        return JSONResponse(content=response, status_code=500)
+
+
+@router.get("/cross-correlation/symbols")
+async def get_available_symbols():
+    """
+    Get list of available symbols for cross-correlation analysis.
+    """
+    try:
+        import mysql.connector
+        
+        con = mysql.connector.connect(
+            host="host.docker.internal",
+            user="ingestor_user",
+            password="password123",
+            database="ingestor"
+        )
+        
+        cursor = con.cursor()
+        cursor.execute("""
+            SELECT s.symbol, COUNT(a.id) as data_points
+            FROM symbol s
+            LEFT JOIN article a ON s.symbol = a.symbol
+            GROUP BY s.symbol
+            HAVING data_points > 10
+            ORDER BY data_points DESC
+            LIMIT 50
+        """)
+        
+        symbols = [{"symbol": row[0], "data_points": row[1]} for row in cursor.fetchall()]
+        con.close()
+        
+        response = ApiResponse._create_response(
+            level="info",
+            msg=f"Found {len(symbols)} symbols with sufficient data",
+            response={"symbols": symbols}
+        )
+        return JSONResponse(content=response, status_code=200)
+        
+    except Exception as e:
+        response = ApiResponse._create_response(
+            level="error",
+            msg=f"Failed to fetch symbols: {str(e)}",
+            response=[]
+        )
+        return JSONResponse(content=response, status_code=500)
