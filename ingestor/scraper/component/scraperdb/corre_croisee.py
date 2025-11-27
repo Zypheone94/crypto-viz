@@ -1,22 +1,35 @@
 """
 Module de corrélation croisée normalisée pour l'analyse crypto.
 Utilise numpy.correlate pour calculer la corrélation entre volume et prix.
+Utilise SQLite (ingestor.db) comme base de données.
 """
 
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Any
-import mysql.connector
+import sqlite3
+from pathlib import Path
+
+
+def get_db_path() -> Path:
+    """Retourne le chemin vers la base de données SQLite."""
+    # Chemin dans Docker
+    docker_path = Path("/app/ingestor/scraper/component/scraperdb/data/ingestor.db")
+    if docker_path.exists():
+        return docker_path
+    
+    # Chemin local (relatif au fichier)
+    local_path = Path(__file__).parent / "data" / "ingestor.db"
+    if local_path.exists():
+        return local_path
+    
+    raise FileNotFoundError(f"Base de données non trouvée: {docker_path} ou {local_path}")
 
 
 def get_db_connection():
-    """Connexion MySQL pour Docker."""
-    return mysql.connector.connect(
-        host="host.docker.internal",
-        user="ingestor_user",
-        password="password123",
-        database="ingestor"
-    )
+    """Connexion SQLite."""
+    db_path = get_db_path()
+    return sqlite3.connect(str(db_path))
 
 
 def get_correlation_strength(correlation: float) -> str:
@@ -66,36 +79,44 @@ def analyze_symbol(symbol: str, max_lag: int = 12) -> Dict[str, Any]:
     """
     try:
         conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
         
         query = """
             SELECT fetched_at, price, volume_24h
             FROM article
-            WHERE symbol = %s
+            WHERE symbol = ?
             AND price IS NOT NULL
             AND volume_24h IS NOT NULL
             ORDER BY fetched_at ASC
         """
         
-        cursor.execute(query, (symbol.upper(),))
-        rows = cursor.fetchall()
-        cursor.close()
+        df = pd.read_sql_query(query, conn, params=(symbol.upper(),))
         conn.close()
         
-        if len(rows) < 10:
+        if len(df) < 10:
             return {
-                "error": f"Données insuffisantes pour {symbol} ({len(rows)} points)",
+                "error": f"Données insuffisantes pour {symbol} ({len(df)} points)",
                 "symbol": symbol,
-                "data_points": len(rows)
+                "data_points": len(df)
             }
         
-        # Créer DataFrame
-        df = pd.DataFrame(rows)
+        # Convertir les dates
         df['fetched_at'] = pd.to_datetime(df['fetched_at'])
         
-        # Normalisation Z-score (comme dans ton code)
-        df['price_z'] = (df['price'] - df['price'].mean()) / df['price'].std()
-        df['volume_z'] = (df['volume_24h'] - df['volume_24h'].mean()) / df['volume_24h'].std()
+        # Normalisation Z-score
+        price_mean = df['price'].mean()
+        price_std = df['price'].std()
+        volume_mean = df['volume_24h'].mean()
+        volume_std = df['volume_24h'].std()
+        
+        if price_std == 0 or volume_std == 0:
+            return {
+                "error": f"Pas de variation pour {symbol}",
+                "symbol": symbol,
+                "data_points": len(df)
+            }
+        
+        df['price_z'] = (df['price'] - price_mean) / price_std
+        df['volume_z'] = (df['volume_24h'] - volume_mean) / volume_std
         
         # Corrélation croisée avec numpy.correlate
         corr_full = np.correlate(df['price_z'], df['volume_z'], mode='full')
@@ -141,8 +162,8 @@ def analyze_symbol(symbol: str, max_lag: int = 12) -> Dict[str, Any]:
             }
         }
         
-    except mysql.connector.Error as e:
-        return {"error": f"Erreur de base de données: {str(e)}", "symbol": symbol}
+    except FileNotFoundError as e:
+        return {"error": str(e), "symbol": symbol}
     except Exception as e:
         return {"error": f"Erreur d'analyse: {str(e)}", "symbol": symbol}
 
@@ -152,7 +173,6 @@ def analyze_multiple_symbols(symbols: Optional[List[str]] = None, max_lag: int =
     try:
         if symbols is None:
             conn = get_db_connection()
-            cursor = conn.cursor(dictionary=True)
             
             query = """
                 SELECT symbol, COUNT(*) as count
@@ -161,15 +181,15 @@ def analyze_multiple_symbols(symbols: Optional[List[str]] = None, max_lag: int =
                 GROUP BY symbol
                 HAVING count > 10
                 ORDER BY count DESC
-                LIMIT %s
+                LIMIT ?
             """
             
+            cursor = conn.cursor()
             cursor.execute(query, (limit,))
             rows = cursor.fetchall()
-            cursor.close()
             conn.close()
             
-            symbols = [row['symbol'] for row in rows]
+            symbols = [row[0] for row in rows]
         
         results = []
         for symbol in symbols:
@@ -178,8 +198,8 @@ def analyze_multiple_symbols(symbols: Optional[List[str]] = None, max_lag: int =
         
         return results
         
-    except mysql.connector.Error as e:
-        return [{"error": f"Erreur de base de données: {str(e)}"}]
+    except FileNotFoundError as e:
+        return [{"error": str(e)}]
     except Exception as e:
         return [{"error": f"Erreur: {str(e)}"}]
 
@@ -188,7 +208,6 @@ def get_available_symbols() -> List[Dict[str, Any]]:
     """Récupère la liste des symboles disponibles pour l'analyse."""
     try:
         conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
         
         query = """
             SELECT symbol, COUNT(*) as data_points
@@ -199,46 +218,37 @@ def get_available_symbols() -> List[Dict[str, Any]]:
             ORDER BY data_points DESC
         """
         
+        cursor = conn.cursor()
         cursor.execute(query)
         rows = cursor.fetchall()
-        cursor.close()
         conn.close()
         
-        return rows
+        return [{"symbol": row[0], "data_points": row[1]} for row in rows]
         
-    except mysql.connector.Error as e:
-        return [{"error": f"Erreur de base de données: {str(e)}"}]
+    except FileNotFoundError as e:
+        return [{"error": str(e)}]
     except Exception as e:
         return [{"error": f"Erreur: {str(e)}"}]
 
 
-# Pour tester en local (hors Docker)
+# Pour tester en local
 if __name__ == "__main__":
-    from sqlalchemy import create_engine
+    print("=== Test Corrélation Croisée ===")
     
-    # Connexion locale pour test
-    db_connection_str = 'mysql://ingestor_user:password123@localhost/ingestor'
-    db_connection = create_engine(db_connection_str)
+    # Liste des symboles disponibles
+    symbols = get_available_symbols()
+    print(f"\nSymboles disponibles: {len(symbols)}")
+    for s in symbols[:5]:
+        print(f"  - {s['symbol']}: {s['data_points']} points")
     
-    df = pd.read_sql('SELECT * FROM article', con=db_connection)
-    df_filtered = df.filter(items=['volume_24h', 'price', 'fetched_at', 'symbol'])
-    df_filtered['fetched_at'] = pd.to_datetime(df_filtered['fetched_at'])
-    df_sorted = df_filtered.sort_values(by=['fetched_at'], ascending=True)
-    
-    # Filtrer BTC
-    df_btc = df_sorted[df_sorted['symbol'] == "BTC"].copy()
-    
-    # Normalisation Z-score
-    df_btc['price_z'] = (df_btc['price'] - df_btc['price'].mean()) / df_btc['price'].std()
-    df_btc['volume_z'] = (df_btc['volume_24h'] - df_btc['volume_24h'].mean()) / df_btc['volume_24h'].std()
-    
-    # Corrélation croisée
-    corr = np.correlate(df_btc['price_z'], df_btc['volume_z'], mode='full')
-    corre = corr / len(df_btc)
-    lags = np.arange(-len(df_btc) + 1, len(df_btc))
-    
-    # Afficher le lag optimal
-    optimal_idx = np.argmax(np.abs(corre))
-    print(f"Lag optimal: {lags[optimal_idx]}")
-    print(f"Corrélation: {corre[optimal_idx]:.4f}")
-    print(f"Nombre de points: {len(df_btc)}")
+    # Analyser BTC
+    print("\n=== Analyse BTC ===")
+    result = analyze_symbol("BTC", max_lag=12)
+    if "error" not in result:
+        print(f"Points de données: {result['data_points']}")
+        print(f"Lag optimal: {result['optimal_lag']}")
+        print(f"Corrélation: {result['optimal_correlation']:.4f}")
+        print(f"Force: {result['correlation_strength']}")
+        print(f"Interprétation: {result['interpretation']}")
+    else:
+        print(f"Erreur: {result['error']}")

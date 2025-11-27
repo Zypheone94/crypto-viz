@@ -920,33 +920,19 @@ async def get_cross_correlation(
 
 
 @router.get("/cross-correlation/symbols")
-async def get_available_symbols():
+async def get_available_symbols_endpoint():
     """
     Get list of available symbols for cross-correlation analysis.
+    Uses SQLite database (ingestor.db).
     """
     try:
-        import mysql.connector
+        # Import the analysis module
+        scraperdb_path = PathLib(__file__).parent.parent.parent / "component" / "scraperdb"
+        sys.path.insert(0, str(scraperdb_path))
         
-        con = mysql.connector.connect(
-            host="host.docker.internal",
-            user="ingestor_user",
-            password="password123",
-            database="ingestor"
-        )
+        from corre_croisee import get_available_symbols
         
-        cursor = con.cursor()
-        cursor.execute("""
-            SELECT s.symbol, COUNT(a.id) as data_points
-            FROM symbol s
-            LEFT JOIN article a ON s.symbol = a.symbol
-            GROUP BY s.symbol
-            HAVING data_points > 10
-            ORDER BY data_points DESC
-            LIMIT 50
-        """)
-        
-        symbols = [{"symbol": row[0], "data_points": row[1]} for row in cursor.fetchall()]
-        con.close()
+        symbols = get_available_symbols()
         
         response = ApiResponse._create_response(
             level="info",
@@ -956,9 +942,11 @@ async def get_available_symbols():
         return JSONResponse(content=response, status_code=200)
         
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
         response = ApiResponse._create_response(
             level="error",
             msg=f"Failed to fetch symbols: {str(e)}",
-            response=[]
+            response={"error_details": error_details.split('\\n')[-3:-1]}
         )
         return JSONResponse(content=response, status_code=500)
