@@ -40,6 +40,14 @@
     Moyennes Mobiles
   </button>
 
+  <button
+    class="tab"
+    [class.active]="view === 'randomForest'"
+    (click)="select('randomForest')">
+    <mat-icon>forest</mat-icon>
+    Random Forest
+  </button>
+
 </div>
 
 
@@ -68,5 +76,9 @@
   <app-moving-averages
     *ngIf="view === 'movingAverages'">
   </app-moving-averages>
+
+  <app-random-forest
+    *ngIf="view === 'randomForest'">
+  </app-random-forest>
 
 </div>

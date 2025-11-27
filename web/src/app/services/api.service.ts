@@ -399,6 +399,41 @@ export class ApiService {
     return this.http.get<any>(`${this.baseUrl}/algo/moving-averages`, { params: httpParams });
   }
 
+  // Random Forest API methods
+  trainRandomForest(params: {
+    symbol: string | null;
+    n_estimators: number;
+    max_depth: number;
+    test_size: number;
+  }): Observable<any> {
+    let httpParams = new HttpParams()
+      .set('n_estimators', String(params.n_estimators))
+      .set('max_depth', String(params.max_depth))
+      .set('test_size', String(params.test_size));
+
+    if (params.symbol) {
+      httpParams = httpParams.set('symbol', params.symbol);
+    }
+
+    return this.http.post<any>(`${this.baseUrl}/algo/random-forest/train`, {}, { params: httpParams });
+  }
+
+  predictRandomForest(symbol: string, recentCount: number): Observable<any> {
+    const httpParams = new HttpParams()
+      .set('symbol', symbol)
+      .set('recent_count', String(recentCount));
+
+    return this.http.get<any>(`${this.baseUrl}/algo/random-forest/predict`, { params: httpParams });
+  }
+
+  getRandomForestInfo(): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/algo/random-forest/info`);
+  }
+
+  getAvailableSymbols(): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/api/symbols`);
+  }
+
   private extractResponse<T = any>(payload: any): T {
     if (payload?.response?.data !== undefined) {
       return payload.response.data as T;

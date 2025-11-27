@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import health, data
+from api.routes import health, data, symbols
 from api.routes.analytics import metrics
 from api.routes.algo import average, random_forest
 from api.routes import market_route
@@ -34,6 +34,7 @@ app.include_router(metrics.router)
 app.include_router(average.router)
 app.include_router(market_route.router)
 app.include_router(random_forest.router)
+app.include_router(symbols.router)
 """
 REMINDER : You must start your api path by : 
 - API (if you do something with the api, health, etc...)

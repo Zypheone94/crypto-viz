@@ -1,0 +1,247 @@
+<div class="random-forest">
+  <!-- Loading State -->
+  <div *ngIf="currentState === componentState.LOADING" class="loading-container">
+    <mat-spinner></mat-spinner>
+    <p>Chargement des informations du modèle...</p>
+  </div>
+
+  <!-- Not Ready / Initial State -->
+  <div *ngIf="currentState === componentState.NOTREADY" class="intro-container">
+    <h2>Random Forest - Prédiction de Tendance Crypto</h2>
+    <p class="description">
+      Entraînez un modèle de Machine Learning pour prédire les tendances de prix des cryptomonnaies.
+      Le modèle utilise les features suivantes : prix, volume 24h, market cap, circulation, et moyennes mobiles.
+    </p>
+    <mat-divider></mat-divider>
+  </div>
+
+  <!-- Training Section -->
+  <mat-card class="section-card">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>psychology</mat-icon>
+        Entraînement du Modèle
+      </mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <div class="form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Symbole (vide = tous)</mat-label>
+          <input matInput [(ngModel)]="trainSymbol" placeholder="BTC, ETH, ..." />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Nombre d'arbres</mat-label>
+          <input matInput type="number" [(ngModel)]="nEstimators" min="10" max="500" />
+          <mat-hint>10-500 (défaut: 100)</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Profondeur max</mat-label>
+          <input matInput type="number" [(ngModel)]="maxDepth" min="2" max="50" />
+          <mat-hint>2-50 (défaut: 10)</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Ratio test</mat-label>
+          <input matInput type="number" [(ngModel)]="testSize" min="0.1" max="0.5" step="0.05" />
+          <mat-hint>0.1-0.5 (défaut: 0.2)</mat-hint>
+        </mat-form-field>
+      </div>
+
+      <button
+        mat-raised-button
+        color="primary"
+        (click)="trainModel()"
+        [disabled]="trainingState === componentState.LOADING"
+        class="action-button">
+        <mat-icon>play_arrow</mat-icon>
+        Entraîner le Modèle
+      </button>
+
+      <div *ngIf="trainingState === componentState.LOADING" class="inline-loading">
+        <mat-spinner diameter="24"></mat-spinner>
+        <span>Entraînement en cours...</span>
+      </div>
+
+      <div *ngIf="trainingMessage" class="message" [ngClass]="{
+        'message-success': trainingState === componentState.READY,
+        'message-error': trainingState === componentState.ERROR
+      }">
+        {{ trainingMessage }}
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Model Info Section -->
+  <mat-card class="section-card" *ngIf="modelInfo">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>analytics</mat-icon>
+        Informations du Modèle
+      </mat-card-title>
+      <mat-card-subtitle>
+        Symbole: {{ modelInfo.symbol || 'TOUS' }}
+      </mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <!-- Metrics -->
+      <div class="metrics-grid">
+        <div class="metric-card" [ngClass]="getMetricColor(modelInfo.metrics.accuracy)">
+          <div class="metric-label">Accuracy</div>
+          <div class="metric-value">{{ formatPercent(modelInfo.metrics.accuracy) }}</div>
+        </div>
+        <div class="metric-card" [ngClass]="getMetricColor(modelInfo.metrics.precision)">
+          <div class="metric-label">Precision</div>
+          <div class="metric-value">{{ formatPercent(modelInfo.metrics.precision) }}</div>
+        </div>
+        <div class="metric-card" [ngClass]="getMetricColor(modelInfo.metrics.recall)">
+          <div class="metric-label">Recall</div>
+          <div class="metric-value">{{ formatPercent(modelInfo.metrics.recall) }}</div>
+        </div>
+        <div class="metric-card" [ngClass]="getMetricColor(modelInfo.metrics.f1_score)">
+          <div class="metric-label">F1 Score</div>
+          <div class="metric-value">{{ formatPercent(modelInfo.metrics.f1_score) }}</div>
+        </div>
+      </div>
+
+      <!-- Feature Importance Chart -->
+      <div class="chart-container" *ngIf="featureImportanceChartData.labels && featureImportanceChartData.labels.length > 0">
+        <canvas
+          baseChart
+          [type]="'bar'"
+          [data]="featureImportanceChartData"
+          [options]="featureImportanceChartOptions">
+        </canvas>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Prediction Section -->
+  <mat-card class="section-card" *ngIf="currentState === componentState.READY">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>insights</mat-icon>
+        Prédictions
+      </mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <div class="form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Symbole</mat-label>
+          <mat-select [(ngModel)]="predictSymbol" [disabled]="loadingSymbols">
+            <mat-option *ngFor="let symbol of availableSymbols" [value]="symbol">
+              {{ symbol }}
+            </mat-option>
+          </mat-select>
+          <mat-hint *ngIf="loadingSymbols">Chargement des symboles...</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Nombre d'observations</mat-label>
+          <input matInput type="number" [(ngModel)]="recentCount" min="1" max="100" />
+          <mat-hint>1-100 (défaut: 5)</mat-hint>
+        </mat-form-field>
+      </div>
+
+      <button
+        mat-raised-button
+        color="accent"
+        (click)="predict()"
+        [disabled]="predictionState === componentState.LOADING"
+        class="action-button">
+        <mat-icon>lightbulb</mat-icon>
+        Prédire
+      </button>
+
+      <div *ngIf="predictionState === componentState.LOADING" class="inline-loading">
+        <mat-spinner diameter="24"></mat-spinner>
+        <span>Prédiction en cours...</span>
+      </div>
+
+      <div *ngIf="predictionMessage" class="message" [ngClass]="{
+        'message-success': predictionState === componentState.READY,
+        'message-error': predictionState === componentState.ERROR
+      }">
+        {{ predictionMessage }}
+      </div>
+
+      <!-- Predictions Results -->
+      <div *ngIf="predictions.length > 0" class="predictions-container">
+        <h3>Résultat Global</h3>
+
+        <!-- Global Verdict -->
+        <div class="global-verdict" [ngClass]="getGlobalPredictionClass()">
+          <div class="verdict-main">
+            <mat-icon class="verdict-icon">{{ getGlobalPredictionIcon() }}</mat-icon>
+            <div class="verdict-content">
+              <h2 class="verdict-title">{{ getGlobalVerdict() }}</h2>
+              <div class="verdict-stats">
+                <div class="stat-item">
+                  <span class="stat-label">Confiance moyenne:</span>
+                  <span class="stat-value">{{ getAverageConfidence() }}%</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Tendance:</span>
+                  <span class="stat-value">{{ getHaussePercentage() }}% HAUSSE / {{ getBaissePercentage() }}% BAISSE</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Nombre de prédictions:</span>
+                  <span class="stat-value">{{ predictions.length }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detailed Predictions (collapsible) -->
+        <div class="detailed-predictions">
+          <button mat-button (click)="showDetails = !showDetails" class="toggle-details">
+            <mat-icon>{{ showDetails ? 'expand_less' : 'expand_more' }}</mat-icon>
+            {{ showDetails ? 'Masquer' : 'Voir' }} les prédictions détaillées ({{ predictions.length }})
+          </button>
+
+          <div *ngIf="showDetails" class="predictions-list">
+          <div *ngFor="let pred of predictions" class="prediction-card" [ngClass]="getPredictionClass(pred.prediction)">
+            <div class="prediction-main">
+              <div class="prediction-visual">
+                <mat-icon class="prediction-icon" [class]="getPredictionClass(pred.prediction)">
+                  {{ getPredictionIcon(pred.prediction) }}
+                </mat-icon>
+                <div class="prediction-content">
+                  <div class="prediction-label" [ngClass]="getPredictionClass(pred.prediction)">
+                    {{ pred.prediction === 'HAUSSE' ? '↑ HAUSSE' : '↓ BAISSE' }}
+                  </div>
+                  <div class="prediction-probability-display">
+                    <span class="probability-value" [ngClass]="getPredictionClass(pred.prediction)">{{ formatPercent(pred.probability) }}</span>
+                    <span class="probability-label">de confiance</span>
+                  </div>
+                </div>
+              </div>
+              <div class="prediction-meta">
+                <div class="meta-item">
+                  <mat-icon class="meta-icon">schedule</mat-icon>
+                  <span>{{ pred.timestamp }}</span>
+                </div>
+                <div class="meta-item">
+                  <mat-icon class="meta-icon">attach_money</mat-icon>
+                  <span>{{ pred.price.toFixed(2) }} USD</span>
+                </div>
+              </div>
+            </div>
+            <mat-divider></mat-divider>
+            <div class="prediction-features">
+              <span class="features-title">Indicateurs techniques:</span>
+              <mat-chip-set>
+                <mat-chip *ngFor="let feature of pred.features | keyvalue" class="feature-chip">
+                  <strong>{{ feature.key }}:</strong> {{ feature.value.toFixed(4) }}
+                </mat-chip>
+              </mat-chip-set>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

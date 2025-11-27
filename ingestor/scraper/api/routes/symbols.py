@@ -1,51 +1,51 @@
-import os
-from pathlib import Path
-
-import fastapi
-from fastapi import APIRouter
-import sqlite3
-from dotenv import load_dotenv
+import mysql.connector
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import JSONResponse
 
 from ..utils import JsonApiTemplate
 
-def _resolve(path: Path) -> Path:
-    if path.is_absolute():
-        return path
-    return (Path.cwd() / path).resolve()
-
-DB_PATH = _resolve(Path("component/scraperdb/data/ingestor.db"))
-
 router = APIRouter(
-    prefix="/symbols",
+    prefix="/api",
     tags=["symbols"]
 )
 
 ApiResponse = JsonApiTemplate("api")
-con = sqlite3.connect(DB_PATH)
 
-@router.get("/api/symbols")
+@router.get("/symbols")
 async def get_symbols():
+    """
+    Retourne la liste de tous les symboles disponibles dans la base de données.
+    """
     try:
+        con = mysql.connector.connect(
+            host="host.docker.internal",
+            user="ingestor_user",
+            password="password123",
+            database="ingestor"
+        )
+        
         cursor = con.cursor()
-        symbols = cursor.execute("SELECT * FROM symbol")
+        cursor.execute("SELECT DISTINCT symbol FROM article ORDER BY symbol ASC")
+        
+        symbols = [row[0] for row in cursor.fetchall()]
+        
+        cursor.close()
+        con.close()
 
-        myResponse = ApiResponse._create_response(
-            level="info",
-            msg="Symbols list",
-            response={
-                "stauts": 200,
-                "data": symbols
-            }
+        return JSONResponse(
+            content=ApiResponse._create_response(
+                level="info",
+                msg="Symbols retrieved successfully",
+                response=symbols
+            ),
+            status_code=200
         )
-
-        return myResponse
     except Exception as e:
-        myError = ApiResponse._create_response(
-            level="error",
-            msg="Error while fetching symbols",
-            response={
-                "status": 500,
-                "error": str(e)
-            }
+        raise HTTPException(
+            status_code=500,
+            detail=ApiResponse._create_response(
+                level="error",
+                msg=f"Error while fetching symbols: {str(e)}",
+                response=[]
+            )
         )
-        return myError

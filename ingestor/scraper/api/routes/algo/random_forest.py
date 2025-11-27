@@ -43,14 +43,23 @@ def train_random_forest(
         # Sauvegarder le modèle
         random_forest.save_model(result)
         
+        # Retourner les métriques de test (pas train)
+        test_metrics = result["metrics"]["test"]
         response_data = {
             "symbol": result["symbol"],
-            "metrics": result["metrics"],
+            "metrics": {
+                "accuracy": test_metrics["accuracy"],
+                "precision": test_metrics["precision"],
+                "recall": test_metrics["recall"],
+                "f1_score": test_metrics["f1"]
+            },
             "feature_importance": result["feature_importance"],
             "model_params": {
                 "n_estimators": n_estimators,
                 "max_depth": max_depth,
                 "test_size": test_size,
+                "train_samples": result["metrics"]["train_samples"],
+                "test_samples": result["metrics"]["test_samples"]
             }
         }
         
@@ -133,9 +142,18 @@ def model_info():
     try:
         result = random_forest.load_model()
         
+        # Retourner les métriques de test
+        metrics = result.get("metrics", {})
+        test_metrics = metrics.get("test", {})
+        
         response_data = {
             "symbol": result.get("symbol", "ALL"),
-            "metrics": result.get("metrics", {}),
+            "metrics": {
+                "accuracy": test_metrics.get("accuracy", 0),
+                "precision": test_metrics.get("precision", 0),
+                "recall": test_metrics.get("recall", 0),
+                "f1_score": test_metrics.get("f1", 0)
+            },
             "feature_importance": result.get("feature_importance", {}),
             "feature_names": result.get("feature_names", []),
         }
