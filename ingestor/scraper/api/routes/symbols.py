@@ -2,7 +2,31 @@ import mysql.connector
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
+import fastapi
+import mysql
+from fastapi import APIRouter
+import sqlite3
+from dotenv import load_dotenv
+
 from ..utils import JsonApiTemplate
+
+def _resolve(path: Path) -> Path:
+    if path.is_absolute():
+        return path
+    return (Path.cwd() / path).resolve()
+
+def db_connect():
+    try:
+        con = mysql.connector.connect(
+            host="host.docker.internal",
+            user="ingestor_user",
+            password="password123",
+            database="ingestor")
+        print("Connected to database")
+        return con
+    except mysql.connector.Error as err:
+        print("Could not connect to database : ", err)
+        return None
 
 router = APIRouter(
     prefix="/api",
@@ -10,6 +34,7 @@ router = APIRouter(
 )
 
 ApiResponse = JsonApiTemplate("api")
+con = db_connect()
 
 @router.get("/symbols")
 async def get_symbols():
@@ -25,12 +50,8 @@ async def get_symbols():
         )
         
         cursor = con.cursor()
-        cursor.execute("SELECT DISTINCT symbol FROM article ORDER BY symbol ASC")
-        
-        symbols = [row[0] for row in cursor.fetchall()]
-        
-        cursor.close()
-        con.close()
+        cursor.execute("SELECT symbol FROM symbol")
+        symbols = [s[0] for s in cursor.fetchall()]
 
         return JSONResponse(
             content=ApiResponse._create_response(

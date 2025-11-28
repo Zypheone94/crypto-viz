@@ -1,0 +1,27 @@
+<div class="controls">
+  <select [(ngModel)]="symbol1" (change)="onSelectionChange()">
+    <option [value]="null">Sélectionner symbole 1</option>
+    <option *ngFor="let s of symbols" [value]="s">{{ s }}</option>
+  </select>
+
+  <select [(ngModel)]="symbol2" (change)="onSelectionChange()">
+    <option [value]="null">Sélectionner symbole 2</option>
+    <option *ngFor="let s of symbols" [value]="s">{{ s }}</option>
+  </select>
+
+  <select [(ngModel)]="timespan" (change)="onSelectionChange()">
+    <option value="hour">Dernière heure</option>
+    <option value="day">Dernier jour</option>
+  </select>
+</div>
+
+<div *ngIf="loading">Chargement...</div>
+<div *ngIf="errorMsg" class="error">{{ errorMsg }}</div>
+
+<div *ngIf="correlation" class="card">
+  <h2>{{ correlation.symbol1 }} / {{ correlation.symbol2 }}</h2>
+  <p>Période : {{ correlation.timespan === 'hour' ? '1 heure' : '1 jour' }}</p>
+  <p>Points utilisés : {{ correlation.usable_points }}</p>
+  <p>Coefficient de Pearson : {{ correlation.correlation_pearson }}</p>
+  <p>{{ correlation.message }}</p>
+</div>

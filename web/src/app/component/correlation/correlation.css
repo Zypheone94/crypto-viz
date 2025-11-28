@@ -1,0 +1,60 @@
+.card {
+  background: #111;
+  padding: 25px;
+  border-radius: 15px;
+  width: 360px;
+  color: #eee;
+  font-family: Inter, sans-serif;
+  box-shadow: 0 0 15px #0004;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.timespan-tag {
+  background: #333;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.rows {
+  margin: 10px 0 5px;
+  opacity: 0.8;
+}
+
+.value-box {
+  margin-top: 15px;
+  padding: 15px;
+  text-align: center;
+  background: #222;
+  border-radius: 10px;
+}
+
+.value {
+  font-size: 40px;
+  font-weight: 600;
+}
+
+.label {
+  opacity: 0.7;
+  margin-top: 5px;
+  font-size: 14px;
+}
+
+.positive {
+  border: 1px solid #3aff49;
+}
+
+.negative {
+  border: 1px solid #ff3f3f;
+}
+
+.message {
+  opacity: 0.6;
+  margin-top: 15px;
+  font-size: 13px;
+}

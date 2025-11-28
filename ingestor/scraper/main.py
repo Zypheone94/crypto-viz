@@ -8,6 +8,9 @@ from api.utils.middleware import Middleware
 import os
 from dotenv import load_dotenv
 
+from ingestor.scraper.api.routes.analytics import pearson
+from ingestor.scraper.api.routes import symbols
+
 app = FastAPI()
 
 env_path = os.path.join(os.path.dirname(__file__), '../../../.env')
@@ -35,6 +38,7 @@ app.include_router(average.router)
 app.include_router(market_route.router)
 app.include_router(random_forest.router)
 app.include_router(symbols.router)
+app.include_router(pearson.router)
 """
 REMINDER : You must start your api path by : 
 - API (if you do something with the api, health, etc...)
