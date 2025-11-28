@@ -1,0 +1,76 @@
+<div class="moving-averages">
+  <div *ngIf="currentState === componentState.LOADING" class="loading-container">
+    <mat-spinner></mat-spinner>
+    <p>Chargement des moyennes mobiles…</p>
+  </div>
+
+  <div *ngIf="currentState === componentState.ERROR" class="error-container">
+    <p class="error-message">Erreur : {{ errorMessage }}</p>
+  </div>
+
+  <div *ngIf="currentState === componentState.EMPTY" class="no-result-container">
+    <p>Aucune donnée disponible pour cette période.</p>
+  </div>
+
+  <div *ngIf="currentState === componentState.NOTREADY" class="form-container">
+    <h2>Moyennes Mobiles</h2>
+    <p class="description">Configurez les paramètres pour visualiser les moyennes mobiles (SMA, WMA, EMA)</p>
+  </div>
+
+  <div class="controls-panel">
+    <div class="form-grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Symbole</mat-label>
+        <input matInput [(ngModel)]="symbol" placeholder="BTC" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Date de début</mat-label>
+        <input matInput type="date" [(ngModel)]="fromDate" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Date de fin</mat-label>
+        <input matInput type="date" [(ngModel)]="toDate" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Fenêtre</mat-label>
+        <input matInput type="number" [(ngModel)]="window" min="2" max="365" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Type de moyenne</mat-label>
+        <mat-select [(ngModel)]="maType">
+          <mat-option *ngFor="let type of maTypes" [value]="type.value">
+            {{ type.label }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Granularité</mat-label>
+        <mat-select [(ngModel)]="bucket">
+          <mat-option *ngFor="let b of buckets" [value]="b.value">
+            {{ b.label }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+    <button mat-raised-button color="primary" (click)="fetchMovingAverages()" class="fetch-button">
+      Calculer les moyennes mobiles
+    </button>
+  </div>
+
+  <div *ngIf="currentState === componentState.READY" class="chart-container">
+    <h3>Graphique des Moyennes Mobiles - {{ symbol }}</h3>
+    <canvas
+      baseChart
+      [type]="'line'"
+      [data]="lineChartData"
+      [options]="lineChartOptions"
+    >
+    </canvas>
+  </div>
+</div>

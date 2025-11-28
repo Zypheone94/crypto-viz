@@ -32,6 +32,22 @@
     RSI
   </button>
 
+  <button
+    class="tab"
+    [class.active]="view === 'movingAverages'"
+    (click)="select('movingAverages')">
+    <mat-icon>moving</mat-icon>
+    Moyennes Mobiles
+  </button>
+
+  <button
+    class="tab"
+    [class.active]="view === 'randomForest'"
+    (click)="select('randomForest')">
+    <mat-icon>forest</mat-icon>
+    Random Forest
+  </button>
+
 </div>
 
 
@@ -56,5 +72,13 @@
   <app-rsi
     *ngIf="view === 'rsi'">
   </app-rsi>
+
+  <app-moving-averages
+    *ngIf="view === 'movingAverages'">
+  </app-moving-averages>
+
+  <app-random-forest
+    *ngIf="view === 'randomForest'">
+  </app-random-forest>
 
 </div>
