@@ -7,18 +7,38 @@ import { RsiComponent } from './rsi';
 import { MovingAveragesComponent } from './moving-averages';
 import { RandomForestComponent } from './random-forest';
 import { MatIconModule } from '@angular/material/icon';
+import { LinearRegressionNextHourComponent } from './linear-regression';
+
+type MetricsView =
+  | 'timeseries'
+  | 'trending'
+  | 'ecartTypeGlissant'
+  | 'rsi'
+  | 'movingAverages'
+  | 'randomForest'
+  | 'linearRegression';
 
 @Component({
   selector: 'app-metrics-switcher',
   standalone: true,
-  imports: [CommonModule, TimeSeries, TrendingNowComponent, EcartTypeGlissantComponent, RsiComponent, MovingAveragesComponent, RandomForestComponent, MatIconModule],
+  imports: [
+    CommonModule,
+    TimeSeries,
+    TrendingNowComponent,
+    EcartTypeGlissantComponent,
+    RsiComponent,
+    MovingAveragesComponent,
+    RandomForestComponent,
+    LinearRegressionNextHourComponent,
+    MatIconModule,
+  ],
   templateUrl: './metrics-switcher.html',
   styleUrls: ['./time-series.css'],
 })
 export class MetricsSwitcherComponent {
-  view: 'timeseries' | 'trending' | 'ecartTypeGlissant' | 'rsi' | 'movingAverages' | 'randomForest' = 'timeseries';
+  view: MetricsView = 'timeseries';
 
-  select(view: 'timeseries' | 'trending' | 'ecartTypeGlissant' | 'rsi' | 'movingAverages' | 'randomForest') {
+  select(view: MetricsView) {
     this.view = view;
   }
 }
