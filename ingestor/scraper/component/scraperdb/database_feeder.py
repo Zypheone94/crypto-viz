@@ -49,9 +49,9 @@ def db_connect():
     try:
         con = mysql.connector.connect(
             host="host.docker.internal",
-            user="admin",
-            password="admin",
-            database="crypto_viz")
+            user="ingestor_user",
+            password="password123",
+            database="ingestor")
         print("Connected to database")
         return con
     except mysql.connector.Error as err:
