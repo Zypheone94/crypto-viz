@@ -62,11 +62,14 @@ interface RsiData {
             <mat-form-field appearance="outline">
               <mat-label>Symbole</mat-label>
               <mat-select [(value)]="selectedSymbol" (selectionChange)="onSymbolChange()">
-                <mat-option value="BTC">Bitcoin (BTC)</mat-option>
-                <mat-option value="ETH">Ethereum (ETH)</mat-option>
-                <mat-option value="ADA">Cardano (ADA)</mat-option>
+                <mat-option *ngFor="let symbol of availableSymbols" [value]="symbol">
+                  {{ symbol }}
+                </mat-option>
               </mat-select>
             </mat-form-field>
+            <div class="symbol-info" *ngIf="availableSymbols.length > 0">
+              {{ availableSymbols.length }} symboles disponibles
+            </div>
           </div>
 
           <div class="chart-wrapper" *ngIf="componentState === 'ready' && !isLoading">
@@ -299,6 +302,7 @@ export class RsiComponent implements OnInit, OnDestroy, AfterViewInit {
   isLoading = false;
   errorMessage = '';
   selectedSymbol = 'BTC';
+  availableSymbols: string[] = [];
   
   private autoRefreshSubscription?: Subscription;
 
@@ -308,7 +312,7 @@ export class RsiComponent implements OnInit, OnDestroy, AfterViewInit {
 
   ngOnInit(): void {
     this.componentState = ComponentState.LOADING;
-    this.loadData();
+    this.loadAvailableSymbols();
     
     // Set up auto-refresh every 5 minutes
     this.autoRefreshSubscription = interval(300000).subscribe(() => {
@@ -331,6 +335,40 @@ export class RsiComponent implements OnInit, OnDestroy, AfterViewInit {
 
   onSymbolChange(): void {
     this.loadData();
+  }
+
+  private loadAvailableSymbols(): void {
+    this.apiService.getAvailableSymbols().subscribe({
+      next: (response: any) => {
+        console.log('Symbols API response:', response);
+        
+        // Extract symbols from response
+        if (Array.isArray(response)) {
+          this.availableSymbols = response;
+        } else if (response?.response && Array.isArray(response.response)) {
+          this.availableSymbols = response.response;
+        } else {
+          console.warn('Unexpected symbols response format:', response);
+          this.availableSymbols = ['BTC', 'ETH', 'ADA']; // Fallback
+        }
+        
+        // Set default symbol if not already set
+        if (this.availableSymbols.length > 0 && !this.selectedSymbol) {
+          this.selectedSymbol = this.availableSymbols[0];
+        }
+        
+        console.log(`Loaded ${this.availableSymbols.length} symbols for RSI`);
+        
+        // Now load data for the selected symbol
+        this.loadData();
+      },
+      error: (error) => {
+        console.error('Error loading symbols:', error);
+        // Fallback to common symbols
+        this.availableSymbols = ['BTC', 'ETH', 'ADA', 'SOL', 'BNB', 'XRP'];
+        this.loadData();
+      }
+    });
   }
 
   async loadData(): Promise<void> {

@@ -28,11 +28,11 @@ def load_data_from_db(symbol: str | None = None, limit: int = 10000) -> pd.DataF
     Returns: DataFrame avec colonnes [symbol, fetched_at, price, volume_24h, market_cap, 
                                       price_change, target]
     """
-    con = mysql.connector.connect(
-        host="host.docker.internal",
-        user="ingestor_user",
-        password="password123",
-        database="ingestor"
+    connection = mysql.connector.connect(
+        host=os.getenv("MYSQL_HOST", "host.docker.internal"),
+        user=os.getenv("MYSQL_USER", "root"),
+        password=os.getenv("MYSQL_PASSWORD", ""),
+        database=os.getenv("MYSQL_DATABASE", "ingestor")
     )
     
     where_clause = ""
@@ -56,8 +56,8 @@ def load_data_from_db(symbol: str | None = None, limit: int = 10000) -> pd.DataF
     """
     params.append(limit)
     
-    df = pd.read_sql_query(query, con, params=params)
-    con.close()
+    df = pd.read_sql_query(query, connection, params=params)
+    connection.close()
     
     if df.empty:
         return df

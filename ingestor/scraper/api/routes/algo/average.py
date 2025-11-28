@@ -105,10 +105,10 @@ def availability(symbol: str | None = Query(None)):
     """Quick helper to inspect available symbols and their time ranges."""
     try:
         con = mysql.connector.connect(
-            host="host.docker.internal",
-            user="ingestor_user",
-            password="password123",
-            database="ingestor"
+            host=os.getenv("MYSQL_HOST", "host.docker.internal"),
+            user=os.getenv("MYSQL_USER", "root"),
+            password=os.getenv("MYSQL_PASSWORD", ""),
+            database=os.getenv("MYSQL_DATABASE", "ingestor")
         )
     except mysql.connector.Error as e:
         raise HTTPException(
@@ -178,10 +178,10 @@ def moving_averages(
 
     try:
         con = mysql.connector.connect(
-            host="host.docker.internal",
-            user="ingestor_user",
-            password="password123",
-            database="ingestor"
+            host=os.getenv("MYSQL_HOST", "host.docker.internal"),
+            user=os.getenv("MYSQL_USER", "root"),
+            password=os.getenv("MYSQL_PASSWORD", ""),
+            database=os.getenv("MYSQL_DATABASE", "ingestor")
         )
     except mysql.connector.Error as e:
         raise HTTPException(

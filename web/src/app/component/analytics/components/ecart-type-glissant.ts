@@ -52,12 +52,14 @@ interface EcartTypeResponse {
             <mat-form-field appearance="outline">
               <mat-label>Symbole</mat-label>
               <mat-select [(value)]="selectedSymbol" (selectionChange)="onSymbolChange()">
-                <mat-option value="BTC">Bitcoin (BTC)</mat-option>
-                <mat-option value="ETH">Ethereum (ETH)</mat-option>
-                <mat-option value="ADA">Cardano (ADA)</mat-option>
-                <mat-option value="SOL">Solana (SOL)</mat-option>
+                <mat-option *ngFor="let symbol of availableSymbols" [value]="symbol">
+                  {{ symbol }}
+                </mat-option>
               </mat-select>
             </mat-form-field>
+            <div class="symbol-info" *ngIf="availableSymbols.length > 0">
+              {{ availableSymbols.length }} symboles disponibles
+            </div>
           </div>
 
           <div class="chart-wrapper" *ngIf="!isLoading">
@@ -161,10 +163,21 @@ interface EcartTypeResponse {
       gap: 1rem;
       margin-bottom: 1rem;
       flex-wrap: wrap;
+      align-items: center;
     }
 
     .controls-section mat-form-field {
-      min-width: 200px;
+      min-width: 250px;
+      flex: 1;
+    }
+
+    .symbol-info {
+      color: #666;
+      font-size: 0.875rem;
+      padding: 0.5rem 1rem;
+      background: #f0f7ff;
+      border-radius: 4px;
+      border-left: 3px solid #2196F3;
     }
 
     .chart-wrapper {
@@ -272,6 +285,7 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
   
   private ecartTypeData: RollingStdData[] = [];
   selectedSymbol = 'BTC'; // Default symbol - public for template binding
+  availableSymbols: string[] = []; // Dynamic symbol list
 
   constructor(
     private apiService: ApiService
@@ -281,18 +295,8 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
     console.log('EcartTypeGlissantComponent initialized');
     console.log('API base URL:', this.apiService.baseUrl);
     
-    // Test API connectivity
-    this.apiService.getHealthCheck().subscribe({
-      next: (response) => {
-        console.log('Health check successful:', response);
-        this.loadData();
-      },
-      error: (error) => {
-        console.error('Health check failed:', error);
-        console.log('Attempting to load data anyway...');
-        this.loadData();
-      }
-    });
+    // Load available symbols first
+    this.loadAvailableSymbols();
     
     // Refresh data every 5 minutes
     this.subscription.add(
@@ -300,6 +304,40 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
         this.loadData();
       })
     );
+  }
+
+  private loadAvailableSymbols(): void {
+    this.apiService.getAvailableSymbols().subscribe({
+      next: (response: any) => {
+        console.log('Symbols API response:', response);
+        
+        // Extract symbols from response
+        if (Array.isArray(response)) {
+          this.availableSymbols = response;
+        } else if (response?.response && Array.isArray(response.response)) {
+          this.availableSymbols = response.response;
+        } else {
+          console.warn('Unexpected symbols response format:', response);
+          this.availableSymbols = ['BTC', 'ETH', 'ADA', 'SOL']; // Fallback
+        }
+        
+        // Set default symbol if not already set
+        if (this.availableSymbols.length > 0 && !this.selectedSymbol) {
+          this.selectedSymbol = this.availableSymbols[0];
+        }
+        
+        console.log(`Loaded ${this.availableSymbols.length} symbols`);
+        
+        // Now load data for the selected symbol
+        this.loadData();
+      },
+      error: (error) => {
+        console.error('Error loading symbols:', error);
+        // Fallback to common symbols
+        this.availableSymbols = ['BTC', 'ETH', 'ADA', 'SOL', 'BNB', 'XRP', 'DOGE', 'DOT'];
+        this.loadData();
+      }
+    });
   }
 
   ngAfterViewInit() {
