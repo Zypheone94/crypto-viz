@@ -1,4 +1,3 @@
-import math
 import mysql.connector
 from pathlib import Path
 import time
@@ -90,9 +89,15 @@ def process_feed_article(df: pd.DataFrame) -> None:
         for _, row in df.iterrows():
             data = row.to_dict()
 
+            # Auto-add new symbols to the symbol table if they don't exist
             if data["symbol"] not in existing_symbols:
-                print(f"Symbol {data['symbol']} inexistant, article ignoré")
-                continue
+                try:
+                    cursor.execute("INSERT IGNORE INTO symbol (symbol) VALUES (%s)", (data["symbol"],))
+                    existing_symbols.add(data["symbol"])
+                    print(f"Symbol {data['symbol']} ajouté automatiquement")
+                except Exception as e:
+                    print(f"Erreur lors de l'ajout du symbol {data['symbol']}: {e}")
+                    continue
 
             if data["id"] in existing_ids:
                 print(f"Article {data['id']} déjà présent, ignoré")
@@ -165,6 +170,16 @@ def process_feed_delta(df: pd.DataFrame) -> None:
 
         cursor.execute("SELECT symbol FROM symbol")
         existing_symbols = {row[0] for row in cursor.fetchall()}
+
+        # Auto-add missing symbols for delta processing
+        for symbol in df["symbol"].unique():
+            if symbol not in existing_symbols:
+                try:
+                    cursor.execute("INSERT IGNORE INTO symbol (symbol) VALUES (%s)", (symbol,))
+                    existing_symbols.add(symbol)
+                    print(f"Symbol {symbol} ajouté automatiquement pour delta")
+                except Exception as e:
+                    print(f"Erreur lors de l'ajout du symbol {symbol} pour delta: {e}")
 
         df = df[df["symbol"].isin(existing_symbols)]
 

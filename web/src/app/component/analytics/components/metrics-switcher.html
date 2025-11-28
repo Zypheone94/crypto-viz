@@ -17,6 +17,11 @@
     RSI
   </button>
 
+  <button class="tab" [class.active]="view === 'crossCorrelation'" (click)="select('crossCorrelation')">
+    <mat-icon>compare_arrows</mat-icon>
+    Corrélation croisée
+  </button>
+
   <button
     class="tab"
     [class.active]="view === 'movingAverages'"
@@ -48,6 +53,9 @@
 
   <app-rsi *ngIf="view === 'rsi'">
   </app-rsi>
+
+  <app-cross-correlation *ngIf="view === 'crossCorrelation'">
+  </app-cross-correlation>
 
   <app-moving-averages
     *ngIf="view === 'movingAverages'">
