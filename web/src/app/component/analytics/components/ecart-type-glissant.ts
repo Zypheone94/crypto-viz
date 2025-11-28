@@ -62,13 +62,33 @@ interface EcartTypeResponse {
             </div>
           </div>
 
-          <div class="chart-wrapper" *ngIf="!isLoading">
+          <!-- Chart display -->
+          <div class="chart-wrapper" *ngIf="!isLoading && !errorMessage && ecartTypeData.length > 0">
             <canvas #chartCanvas class="chart-canvas"></canvas>
           </div>
           
+          <!-- Loading state -->
           <div class="loading-container" *ngIf="isLoading">
             <mat-spinner diameter="50"></mat-spinner>
             <p>Chargement des données de volatilité...</p>
+          </div>
+
+          <!-- Error state -->
+          <div class="error-container" *ngIf="!isLoading && errorMessage">
+            <mat-icon class="error-icon">error_outline</mat-icon>
+            <h3>Erreur de chargement</h3>
+            <p>{{ errorMessage }}</p>
+            <button class="retry-button" (click)="loadData()">
+              <mat-icon>refresh</mat-icon>
+              Réessayer
+            </button>
+          </div>
+
+          <!-- Empty state -->
+          <div class="empty-container" *ngIf="!isLoading && !errorMessage && ecartTypeData.length === 0">
+            <mat-icon class="empty-icon">insert_chart_outlined</mat-icon>
+            <h3>Aucune donnée disponible</h3>
+            <p>Aucune donnée de volatilité n'est disponible pour {{ selectedSymbol }}</p>
           </div>
         </mat-card-content>
       </mat-card>
@@ -144,24 +164,33 @@ interface EcartTypeResponse {
     .chart-title {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      color: #333;
+      gap: var(--space-sm);
+      color: var(--text-primary);
       font-size: 1.25rem;
-      font-weight: 600;
+      font-weight: 700;
     }
 
     .title-icon {
-      color: #ffd700;
+      color: var(--primary);
     }
 
     .chart-content {
-      padding: 1.5rem;
+      padding: var(--space-xl);
+    }
+
+    mat-card-header {
+      padding: var(--space-xl);
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    mat-card-subtitle {
+      color: var(--text-secondary) !important;
     }
 
     .controls-section {
       display: flex;
-      gap: 1rem;
-      margin-bottom: 1rem;
+      gap: var(--space-lg);
+      margin-bottom: var(--space-xl);
       flex-wrap: wrap;
       align-items: center;
     }
@@ -172,25 +201,26 @@ interface EcartTypeResponse {
     }
 
     .symbol-info {
-      color: #666;
+      color: var(--text-secondary);
       font-size: 0.875rem;
-      padding: 0.5rem 1rem;
-      background: #f0f7ff;
-      border-radius: 4px;
-      border-left: 3px solid #2196F3;
+      padding: var(--space-sm) var(--space-lg);
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-md);
+      border-left: 3px solid var(--primary);
     }
 
     .chart-wrapper {
       position: relative;
-      height: 400px;
-      background: #f8f9fa;
-      border-radius: 8px;
-      padding: 1rem;
+      min-height: 500px;
+      height: 500px;
+      background: var(--chart-bg);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
     }
 
     .chart-canvas {
       width: 100% !important;
-      height: 100% !important;
+      height: 450px !important;
     }
 
     .loading-container {
@@ -198,8 +228,80 @@ interface EcartTypeResponse {
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      height: 300px;
-      gap: 1rem;
+      min-height: 400px;
+      gap: var(--space-lg);
+    }
+
+    .loading-container p {
+      color: var(--text-secondary);
+    }
+
+    .error-container,
+    .empty-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+      padding: var(--space-2xl);
+      text-align: center;
+      gap: var(--space-md);
+    }
+
+    .error-icon,
+    .empty-icon {
+      font-size: 4rem;
+      width: 4rem;
+      height: 4rem;
+      color: var(--error);
+    }
+
+    .empty-icon {
+      color: var(--text-tertiary);
+    }
+
+    .error-container h3,
+    .empty-container h3 {
+      color: var(--text-primary);
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .error-container p,
+    .empty-container p {
+      color: var(--text-secondary);
+      margin: 0;
+      max-width: 400px;
+    }
+
+    .retry-button {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-md) var(--space-xl);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-md);
+      background: var(--primary);
+      color: var(--text-inverse);
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all var(--transition-fast);
+      box-shadow: var(--shadow-sm);
+      margin-top: var(--space-md);
+    }
+
+    .retry-button:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .retry-button mat-icon {
+      font-size: 1.25rem;
+      width: 1.25rem;
+      height: 1.25rem;
     }
 
     .stats-grid {
@@ -209,13 +311,16 @@ interface EcartTypeResponse {
     }
 
     .stat-card {
-      border-radius: 8px;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
+      transition: all var(--transition-fast);
     }
 
     .stat-card:hover {
       transform: translateY(-2px);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      box-shadow: var(--shadow-card-hover);
+      border-color: var(--primary-light);
     }
 
     .stat-content {
@@ -228,42 +333,59 @@ interface EcartTypeResponse {
       font-size: 2rem;
       width: 2rem;
       height: 2rem;
-      color: #2196F3;
+      color: var(--primary);
     }
 
     .stat-icon.success {
-      color: #4CAF50;
+      color: var(--crypto-green);
     }
 
     .stat-icon.danger {
-      color: #FF5722;
+      color: var(--crypto-red);
     }
 
     .stat-icon.warning {
-      color: #FF9800;
+      color: var(--warning);
     }
 
     .stat-info h3 {
       margin: 0;
       font-size: 1.5rem;
       font-weight: 700;
-      color: #333;
+      color: var(--text-primary);
     }
 
     .stat-info p {
-      margin: 0.25rem 0 0 0;
-      color: #666;
+      margin: var(--space-xs) 0 0 0;
+      color: var(--text-secondary);
       font-size: 0.875rem;
     }
 
     @media (max-width: 768px) {
       .ecart-type-container {
-        padding: 0.5rem;
-        gap: 1rem;
+        padding: var(--space-sm);
+        gap: var(--space-lg);
       }
       
       .stats-grid {
         grid-template-columns: 1fr;
+      }
+
+      .controls-section {
+        flex-direction: column;
+      }
+
+      .controls-section mat-form-field {
+        width: 100%;
+      }
+
+      .chart-wrapper {
+        min-height: 300px;
+        height: 300px;
+      }
+
+      .chart-canvas {
+        height: 250px !important;
       }
     }
   `]
@@ -276,6 +398,7 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
   private dateRangeSubscription: Subscription = new Subscription();
   
   isLoading = true;
+  errorMessage = '';
   currentStd = 0;
   avgStd = 0;
   maxStd = 0;
@@ -283,7 +406,7 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
   avgChangeIcon = 'trending_flat';
   avgChangeClass = '';
   
-  private ecartTypeData: RollingStdData[] = [];
+  ecartTypeData: any[] = [];
   selectedSymbol = 'BTC'; // Default symbol - public for template binding
   availableSymbols: string[] = []; // Dynamic symbol list
 
@@ -360,14 +483,14 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
     this.loadData();
   }
 
-  private loadData() {
+  loadData() {
     this.isLoading = true;
+    this.errorMessage = '';
     
-    // Call API with parameters - use selected symbol
     const symbol = this.selectedSymbol;
     const params = {
       period: 14,
-      limit: 100  // Optimize for performance - reduced data points
+      limit: 100  
     };
     
     console.log('🔄 Fetching écart-type data for symbol:', symbol, 'with params:', params);
@@ -376,7 +499,7 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
     // Use symbol-specific endpoint for better data structure
     this.apiService.getEcartType(symbol, params).subscribe({
       next: (response: any) => {
-        console.log('Écart-type API response:', response);
+        console.log('✅ Écart-type API response:', response);
         const payload = response || {};
         
         // Handle API response structure - check for time_series first (symbol-specific endpoint)

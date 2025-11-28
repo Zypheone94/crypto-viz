@@ -2,7 +2,7 @@ import { Routes } from '@angular/router';
 import { Home } from './component/home/home';
 import { Analytics } from './component/analytics/analytics';
 import { HealthCheck } from './component/health-check/health-check';
-import { NewsComponent } from './component/news/news';
+// import { NewsComponent } from './component/news/news'; // Removed - not needed
 import { MainLayoutComponent } from './layout/main-layout/main-layout';
 
 export const routes: Routes = [
@@ -14,7 +14,7 @@ export const routes: Routes = [
       { path: 'home', component: Home, title: 'Home' },
       { path: 'analytics', component: Analytics, title: 'Analytics' },
       { path: 'health-check', component: HealthCheck, title: 'Health Check' },
-      { path: 'news', component: NewsComponent, title: 'News' },
+      // { path: 'news', component: NewsComponent, title: 'News' }, // Commented out
     ],
   },
   { path: '**', redirectTo: '', pathMatch: 'full' }, // Redirection vers la racine

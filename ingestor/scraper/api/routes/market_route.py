@@ -607,11 +607,27 @@ async def get_market_trending(
 async def get_market_home(
     limit: int = Query(5, ge=1, le=50, description="Number of movers to display")
 ):
+    """
+    Optimized home dashboard endpoint - fetches data in parallel for better performance
+    """
     try:
-        overview = _fetch_market_overview_data()
-        stats = _fetch_market_stats_data()
-        gainers = _fetch_top_gainers_data(limit)
-        losers = _fetch_top_losers_data(limit)
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor
+        
+        # Use thread pool to execute database queries in parallel
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            loop = asyncio.get_event_loop()
+            
+            # Execute all queries in parallel
+            overview_task = loop.run_in_executor(executor, _fetch_market_overview_data)
+            stats_task = loop.run_in_executor(executor, _fetch_market_stats_data)
+            gainers_task = loop.run_in_executor(executor, _fetch_top_gainers_data, limit)
+            losers_task = loop.run_in_executor(executor, _fetch_top_losers_data, limit)
+            
+            # Wait for all queries to complete
+            overview, stats, gainers, losers = await asyncio.gather(
+                overview_task, stats_task, gainers_task, losers_task
+            )
         
         response_data = {
             "overview": overview,
@@ -635,6 +651,8 @@ async def get_market_home(
             }
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return ApiResponse._create_response(
             level="error",
             msg="Error while fetching market home dashboard",

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { catchError, map, Observable, of } from 'rxjs';
+import { catchError, map, Observable, of, timeout, retry } from 'rxjs';
 import { environment } from '../../../env';
 
 import { TimeSeriesParams, TimeSeriesResponse } from '../shared/interface/timeSeries-interface';
@@ -13,6 +13,9 @@ export class ApiService {
   public baseUrl = environment.production
     ? `http://api:${environment.apiPort}`
     : `http://localhost:${environment.apiPort}`;
+
+  // API timeout in milliseconds (30 seconds for slow database queries)
+  private readonly API_TIMEOUT = 30000;
 
   constructor(private http: HttpClient) {}
 
@@ -65,7 +68,18 @@ export class ApiService {
     const httpParams = new HttpParams().set('limit', String(limit));
     return this.http
       .get<any>(`${this.baseUrl}/api/market/home`, { params: httpParams })
-      .pipe(map((payload) => this.extractResponse(payload)));
+      .pipe(
+        timeout(this.API_TIMEOUT),
+        retry(1), // Retry once on failure
+        map((payload) => this.extractResponse(payload)),
+        catchError((error) => {
+          console.error('Home dashboard API error:', error);
+          if (error.name === 'TimeoutError') {
+            throw new Error('Le serveur met trop de temps à répondre. Réessayez plus tard.');
+          }
+          throw error;
+        })
+      );
   }
 
   getMarketTrending(params: { window: string; limit?: number }): Observable<TrendingItem[]> {
