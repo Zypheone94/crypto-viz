@@ -142,10 +142,9 @@ def calculate_ecart_type_analysis(period: int = 14, limit: int = 1000, db_path: 
     }
 
 
-def get_symbol_analysis(symbol: str, period: int = 14, limit: int = 1000, db_path: str | Path = None) -> dict:
+def get_symbol_analysis(symbol: str, period: int = 14, limit: int = 1000) -> dict:
     """
     Get écart-type analysis for a specific symbol using MySQL.
-    Note: db_path parameter is kept for compatibility but not used with MySQL.
     """
     try:
         # Load data directly for the specific symbol using MySQL client

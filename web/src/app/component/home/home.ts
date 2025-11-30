@@ -105,7 +105,7 @@ export class Home implements OnInit {
       },
       error: (error) => {
         const loadTime = performance.now() - startTime;
-        console.error(`❌ Home dashboard failed after ${loadTime.toFixed(0)}ms`, error);
+        console.error(`Home dashboard failed after ${loadTime.toFixed(0)}ms`, error);
         
         // Provide more specific error messages
         if (error.status === 0) {

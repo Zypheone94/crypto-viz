@@ -28,7 +28,7 @@ def load_data_from_db(symbol: str | None = None, limit: int = 10000) -> pd.DataF
     Returns: DataFrame avec colonnes [symbol, fetched_at, price, volume_24h, market_cap, 
                                       price_change, target]
     """
-    connection = mysql.connector.connect(
+    con = mysql.connector.connect(
         host=os.getenv("MYSQL_HOST", "host.docker.internal"),
         user=os.getenv("MYSQL_USER", "root"),
         password=os.getenv("MYSQL_PASSWORD", ""),
@@ -56,8 +56,8 @@ def load_data_from_db(symbol: str | None = None, limit: int = 10000) -> pd.DataF
     """
     params.append(limit)
     
-    df = pd.read_sql_query(query, connection, params=params)
-    connection.close()
+    df = pd.read_sql_query(query, con, params=params)
+    con.close()
     
     if df.empty:
         return df

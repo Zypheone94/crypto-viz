@@ -38,7 +38,7 @@ def _fetch_top_gainers_data(limit: int) -> Dict[str, Any]:
                 a1.name,
                 a1.price as current_price,
                 a1.market_cap,
-                a1.fetched_at as current_date,
+                a1.fetched_at as fetched_date,
                 LAG(a1.price) OVER (PARTITION BY a1.symbol ORDER BY a1.fetched_at) as prev_price,
                 CASE 
                     WHEN LAG(a1.price) OVER (PARTITION BY a1.symbol ORDER BY a1.fetched_at) IS NOT NULL 
@@ -54,8 +54,8 @@ def _fetch_top_gainers_data(limit: int) -> Dict[str, Any]:
                 current_price,
                 market_cap,
                 price_change_pct,
-                current_date,
-                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY current_date DESC) as rn
+                fetched_date,
+                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fetched_date DESC) as rn
             FROM price_changes
             WHERE price_change_pct > 0
         )
@@ -65,7 +65,7 @@ def _fetch_top_gainers_data(limit: int) -> Dict[str, Any]:
             current_price,
             price_change_pct,
             market_cap,
-            current_date
+            fetched_date
         FROM latest_data
         WHERE rn = 1
         ORDER BY price_change_pct DESC
@@ -127,7 +127,7 @@ def _fetch_top_losers_data(limit: int) -> Dict[str, Any]:
                 a1.name,
                 a1.price as current_price,
                 a1.market_cap,
-                a1.fetched_at as current_date,
+                a1.fetched_at as fetched_date,
                 LAG(a1.price) OVER (PARTITION BY a1.symbol ORDER BY a1.fetched_at) as prev_price,
                 CASE 
                     WHEN LAG(a1.price) OVER (PARTITION BY a1.symbol ORDER BY a1.fetched_at) IS NOT NULL 
@@ -143,8 +143,8 @@ def _fetch_top_losers_data(limit: int) -> Dict[str, Any]:
                 current_price,
                 market_cap,
                 price_change_pct,
-                current_date,
-                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY current_date DESC) as rn
+                fetched_date,
+                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fetched_date DESC) as rn
             FROM price_changes
             WHERE price_change_pct < 0
         )
@@ -154,7 +154,7 @@ def _fetch_top_losers_data(limit: int) -> Dict[str, Any]:
             current_price,
             price_change_pct,
             market_cap,
-            current_date
+            fetched_date
         FROM latest_data
         WHERE rn = 1
         ORDER BY price_change_pct ASC

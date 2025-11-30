@@ -487,10 +487,11 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
     this.isLoading = true;
     this.errorMessage = '';
     
+    // Call API with parameters - use selected symbol
     const symbol = this.selectedSymbol;
     const params = {
       period: 14,
-      limit: 100  
+      limit: 100  // Optimize for performance - reduced data points
     };
     
     console.log('🔄 Fetching écart-type data for symbol:', symbol, 'with params:', params);
