@@ -115,8 +115,8 @@ export class Home implements OnInit {
           this.overviewError = 'Erreur serveur. Les services sont peut-être en cours de démarrage...';
           this.moversError = 'Erreur serveur. Réessayez dans quelques instants.';
         } else {
-          this.overviewError = 'Impossible de charger les données du tableau de bord.';
-          this.moversError = 'Impossible de charger les variations du marché.';
+        this.overviewError = 'Impossible de charger les données du tableau de bord.';
+        this.moversError = 'Impossible de charger les variations du marché.';
         }
         
         this.isOverviewLoading = false;
