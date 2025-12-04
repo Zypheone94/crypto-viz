@@ -1,27 +1,91 @@
-<div class="controls">
-  <select [(ngModel)]="symbol1" (change)="onSelectionChange()">
-    <option [value]="null">Sélectionner symbole 1</option>
-    <option *ngFor="let s of symbols" [value]="s">{{ s }}</option>
-  </select>
+<div class="correlation-container">
+  <div class="controls-panel">
+    <h2>Analyse de Corrélation</h2>
 
-  <select [(ngModel)]="symbol2" (change)="onSelectionChange()">
-    <option [value]="null">Sélectionner symbole 2</option>
-    <option *ngFor="let s of symbols" [value]="s">{{ s }}</option>
-  </select>
+    <div class="controls-grid">
+      <div class="control-group">
+        <label for="symbol1">Symbole 1</label>
+        <select
+          id="symbol1"
+          [(ngModel)]="symbol1"
+          (change)="onSelectionChange()"
+          class="select-input"
+        >
+          <option [value]="null" disabled>Choisir...</option>
+          <option *ngFor="let s of symbols" [value]="s">{{ s }}</option>
+        </select>
+      </div>
 
-  <select [(ngModel)]="timespan" (change)="onSelectionChange()">
-    <option value="hour">Dernière heure</option>
-    <option value="day">Dernier jour</option>
-  </select>
-</div>
+      <div class="control-group">
+        <label for="symbol2">Symbole 2</label>
+        <select
+          id="symbol2"
+          [(ngModel)]="symbol2"
+          (change)="onSelectionChange()"
+          class="select-input"
+        >
+          <option [value]="null" disabled>Choisir...</option>
+          <option *ngFor="let s of symbols" [value]="s">{{ s }}</option>
+        </select>
+      </div>
 
-<div *ngIf="loading">Chargement...</div>
-<div *ngIf="errorMsg" class="error">{{ errorMsg }}</div>
+      <div class="control-group">
+        <label for="timespan">Période</label>
+        <select
+          id="timespan"
+          [(ngModel)]="timespan"
+          (change)="onSelectionChange()"
+          class="select-input"
+        >
+          <option value="hour">1 Heure</option>
+          <option value="day">24 Heures</option>
+        </select>
+      </div>
+    </div>
+  </div>
 
-<div *ngIf="correlation" class="card">
-  <h2>{{ correlation.symbol1 }} / {{ correlation.symbol2 }}</h2>
-  <p>Période : {{ correlation.timespan === 'hour' ? '1 heure' : '1 jour' }}</p>
-  <p>Points utilisés : {{ correlation.usable_points }}</p>
-  <p>Coefficient de Pearson : {{ correlation.correlation_pearson }}</p>
-  <p>{{ correlation.message }}</p>
+  <div class="loading-message" *ngIf="loading">
+    <div class="spinner"></div>
+    <p>Chargement des données...</p>
+  </div>
+
+  <div class="error-message" *ngIf="errorMsg">⚠️ {{ errorMsg }}</div>
+
+  <div class="results-container" *ngIf="correlation && !loading">
+    <!-- Statistics Panel -->
+    <div class="stats-panel">
+      <div class="stat-card">
+        <div class="stat-label">Corrélation de Pearson</div>
+        <div class="stat-value" [ngClass]="getCorrelationColor()">
+          {{ correlation.correlation_pearson }}
+        </div>
+        <div class="stat-subtitle">{{ getCorrelationStrength() }}</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Points utilisables</div>
+        <div class="stat-value">{{ correlation.usable_points }}</div>
+        <div class="stat-subtitle">{{ correlation.timespan }}</div>
+      </div>
+
+      <div class="stat-card" *ngFor="let series of correlation.plot_data.series">
+        <div class="stat-label">{{ series.name }}</div>
+        <div class="stat-value-small">
+          <div>
+            <span class="stat-mini-label">Moy:</span>
+            {{ correlation.statistics[series.name + '_mean'] | number: '1.2-4' }}
+          </div>
+          <div>
+            <span class="stat-mini-label">Écart:</span>
+            {{ correlation.statistics[series.name + '_std'] | number: '1.2-4' }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="chart-container">
+      <canvas #chartCanvas></canvas>
+    </div>
+  </div>
 </div>
