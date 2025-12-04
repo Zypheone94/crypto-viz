@@ -25,9 +25,10 @@ export class ApiService {
 
   getNews(limit: number = 50): Observable<any> {
     const httpParams = new HttpParams().set('limit', String(limit));
-    return this.http.get<any>(`${this.baseUrl}/data/news`, { params: httpParams })
+    return this.http
+      .get<any>(`${this.baseUrl}/data/news`, { params: httpParams })
       .pipe(
-        catchError(error => {
+        catchError((error) => {
           console.error('Error fetching news:', error);
           return of({ response: { articles: [] } });
         })
@@ -44,6 +45,7 @@ export class ApiService {
       params: httpParams,
     });
   }
+
   getTopGainers(limit: number = 10): Observable<any> {
     const httpParams = new HttpParams().set('limit', String(limit));
     return this.http
@@ -108,12 +110,15 @@ export class ApiService {
   }
 
   // Écart-type (Standard Deviation) API methods
-  getEcartType(symbol?: string, params?: {
-    period?: number;
-    limit?: number;
-    date_from?: string;
-    date_to?: string;
-  }): Observable<any> {
+  getEcartType(
+    symbol?: string,
+    params?: {
+      period?: number;
+      limit?: number;
+      date_from?: string;
+      date_to?: string;
+    }
+  ): Observable<any> {
     let httpParams = new HttpParams();
 
     if (params?.period) {
@@ -134,7 +139,8 @@ export class ApiService {
     }
 
     const endpoint = symbol ? `/data/ecart-type/${symbol}` : '/data/ecart-type';
-    return this.http.get(`${this.baseUrl}${endpoint}`, { params: httpParams })
+    return this.http
+      .get(`${this.baseUrl}${endpoint}`, { params: httpParams })
       .pipe(
         map((payload) => {
           const response = this.extractResponse(payload);
@@ -150,13 +156,12 @@ export class ApiService {
   }
 
   calculateEcartType(): Observable<any> {
-    return this.http.post(`${this.baseUrl}/data/ecart-type/calculate`, {})
-      .pipe(
-        catchError(error => {
-          console.error('Error triggering écart-type calculation:', error);
-          return of({ status: 'error', message: 'Failed to trigger calculation' });
-        })
-      );
+    return this.http.post(`${this.baseUrl}/data/ecart-type/calculate`, {}).pipe(
+      catchError((error) => {
+        console.error('Error triggering écart-type calculation:', error);
+        return of({ status: 'error', message: 'Failed to trigger calculation' });
+      })
+    );
   }
 
   // RSI (Relative Strength Index) API methods
@@ -185,21 +190,25 @@ export class ApiService {
       httpParams = httpParams.set('date_to', params.date_to);
     }
 
-    return this.http.get<any>(`${this.baseUrl}/data/rsi`, { params: httpParams })
+    return this.http
+      .get<any>(`${this.baseUrl}/data/rsi`, { params: httpParams })
       .pipe(
-        catchError(error => {
+        catchError((error) => {
           console.error('Error fetching RSI analysis:', error);
           return of({ status: 'error', message: 'Failed to fetch RSI analysis' });
         })
       );
   }
 
-  getSymbolRsiAnalysis(symbol: string, params?: {
-    period?: number;
-    limit?: number;
-    date_from?: string;
-    date_to?: string;
-  }): Observable<any> {
+  getSymbolRsiAnalysis(
+    symbol: string,
+    params?: {
+      period?: number;
+      limit?: number;
+      date_from?: string;
+      date_to?: string;
+    }
+  ): Observable<any> {
     let httpParams = new HttpParams();
 
     if (params?.period) {
@@ -215,19 +224,17 @@ export class ApiService {
       httpParams = httpParams.set('date_to', params.date_to);
     }
 
-    return this.http.get<any>(`${this.baseUrl}/data/rsi/${symbol}`, { params: httpParams })
+    return this.http
+      .get<any>(`${this.baseUrl}/data/rsi/${symbol}`, { params: httpParams })
       .pipe(
-        catchError(error => {
+        catchError((error) => {
           console.error('Error fetching symbol RSI analysis:', error);
           return of(error);
         })
       );
   }
 
-  triggerRsiCalculation(params?: {
-    period?: number;
-    limit?: number;
-  }): Observable<any> {
+  triggerRsiCalculation(params?: { period?: number; limit?: number }): Observable<any> {
     let httpParams = new HttpParams();
 
     if (params?.period) {
@@ -237,15 +244,15 @@ export class ApiService {
       httpParams = httpParams.set('limit', String(params.limit));
     }
 
-    return this.http.post<any>(`${this.baseUrl}/data/rsi/calculate`, {}, { params: httpParams })
+    return this.http
+      .post<any>(`${this.baseUrl}/data/rsi/calculate`, {}, { params: httpParams })
       .pipe(
-        catchError(error => {
+        catchError((error) => {
           console.error('Error triggering RSI calculation:', error);
           return of({ status: 'error', message: 'Failed to trigger RSI calculation' });
         })
       );
   }
-
 
   getTrending(params: { window: string; baseline: string; limit?: number }): Observable<TrendingItem[]> {
     // Convert frontend parameters to API parameters
@@ -254,7 +261,7 @@ export class ApiService {
 
     // Calculate 'from' time based on baseline (e.g., "24h" -> 24 hours ago)
     const baselineHours = parseInt(params.baseline.replace('h', '')) || 24;
-    const from = new Date(now.getTime() - (baselineHours * 60 * 60 * 1000)).toISOString();
+    const from = new Date(now.getTime() - baselineHours * 60 * 60 * 1000).toISOString();
 
     // Convert window to bucket format
     const bucket = params.window === '1h' ? 'hour' : 'day';
@@ -266,7 +273,9 @@ export class ApiService {
       .set('limit', String(params.limit ?? 5));
 
     return this.http
-      .get<{ response?: TrendingItem[] } | TrendingItem[]>(`${this.baseUrl}/metrics/trending`, { params: httpParams })
+      .get<{ response?: TrendingItem[] } | TrendingItem[]>(`${this.baseUrl}/metrics/trending`, {
+        params: httpParams,
+      })
       .pipe(
         map((payload) => {
           const data = this.extractResponse(payload);
@@ -285,6 +294,21 @@ export class ApiService {
       .pipe(map((payload) => this.extractResponse(payload)));
   }
 
+  getLinearRegressionPrediction(symbol: string, dateStart?: string): Observable<any> {
+    let params = new HttpParams().set('symbol', symbol);
+
+    if (dateStart) {
+      params = params.set('date_start', dateStart);
+    }
+
+    return this.http.get<any>(`${this.baseUrl}/api/ml/predict`, { params });
+  }
+
+  getSymbols(): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/api/symbols`);
+  }
+
+  // Moving Averages API
   getMovingAverages(params: {
     from: string;
     to: string;
@@ -346,6 +370,124 @@ export class ApiService {
     return this.http.get<any>(`${this.baseUrl}/api/symbols`);
   }
 
+  private mockEcartTypeData(): any {
+    const data = [];
+    const now = new Date();
+
+    for (let i = 30; i >= 0; i--) {
+      const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+      const baseValue = 2.5;
+      const volatility = Math.sin(i * 0.2) * 1.5 + Math.random() * 0.5;
+
+      data.push({
+        timestamp: date.toISOString(),
+        value: Math.max(0.1, baseValue + volatility),
+        label: date.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' }),
+      });
+    }
+
+    return {
+      symbol: 'BTC',
+      window_days: 14,
+      data: data,
+      stats: {
+        current: data[data.length - 1]?.value || 0,
+        average: data.reduce((sum, item) => sum + item.value, 0) / data.length,
+        max: Math.max(...data.map((item) => item.value)),
+        min: Math.min(...data.map((item) => item.value)),
+      },
+    };
+  }
+
+  private mockRsiData(): any {
+    const symbols = ['BTC', 'ETH', 'ADA'];
+    const latestData = symbols.map((symbol) => {
+      const rsi = 30 + Math.random() * 40;
+      return {
+        symbol,
+        current_rsi: rsi,
+        current_signal: rsi > 70 ? 'overbought' : rsi < 30 ? 'oversold' : 'neutral',
+        current_strength: rsi > 50 ? 'bullish' : 'bearish',
+        latest_price: Math.random() * 100,
+        current_momentum: (Math.random() - 0.5) * 10,
+      };
+    });
+
+    const summary = symbols.map((symbol) => ({
+      symbol,
+      avg_rsi: 45 + Math.random() * 10,
+      max_rsi: 70 + Math.random() * 20,
+      min_rsi: 10 + Math.random() * 20,
+      overbought_periods: Math.floor(Math.random() * 5),
+      oversold_periods: Math.floor(Math.random() * 3),
+      dominant_signal: 'neutral',
+      data_points: 50 + Math.floor(Math.random() * 50),
+    }));
+
+    return {
+      level: 'info',
+      message: 'RSI analysis completed (mock data)',
+      response: {
+        metadata: {
+          period: 14,
+          total_records: 150,
+          symbols_analyzed: symbols.length,
+          analysis_timestamp: new Date().toISOString(),
+        },
+        summary,
+        latest_data: latestData,
+      },
+    };
+  }
+
+  private mockSymbolRsiData(symbol: string): any {
+    const timeSeries = [];
+    const now = new Date();
+
+    for (let i = 20; i >= 0; i--) {
+      const date = new Date(now.getTime() - i * 60 * 60 * 1000); // hourly
+      const baseRsi = 50;
+      const rsi = Math.max(
+        0,
+        Math.min(100, baseRsi + Math.sin(i * 0.3) * 20 + (Math.random() - 0.5) * 10)
+      );
+
+      timeSeries.push({
+        ts: date.toISOString(),
+        price_usd: 40000 + Math.sin(i * 0.2) * 5000 + Math.random() * 1000,
+        rsi: rsi,
+        rsi_signal: rsi > 70 ? 'overbought' : rsi < 30 ? 'oversold' : 'neutral',
+        rsi_strength: rsi > 50 ? 'bullish' : 'bearish',
+        rsi_momentum: (Math.random() - 0.5) * 5,
+      });
+    }
+
+    const latest = timeSeries[timeSeries.length - 1];
+
+    return {
+      level: 'info',
+      message: `RSI analysis completed for ${symbol} (mock data)`,
+      response: {
+        symbol,
+        period: 14,
+        latest_stats: {
+          price_usd: latest.price_usd,
+          rsi: latest.rsi,
+          rsi_signal: latest.rsi_signal,
+          rsi_strength: latest.rsi_strength,
+          rsi_momentum: latest.rsi_momentum,
+        },
+        time_series: timeSeries,
+        metadata: {
+          total_points: timeSeries.length,
+          date_range: {
+            start: timeSeries[0]?.ts,
+            end: timeSeries[timeSeries.length - 1]?.ts,
+          },
+        },
+      },
+    };
+  }
   private extractResponse<T = any>(payload: any): T {
     if (payload?.response?.data !== undefined) {
       return payload.response.data as T;

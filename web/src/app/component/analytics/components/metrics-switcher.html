@@ -24,6 +24,14 @@
 
   <button
     class="tab"
+    [class.active]="view === 'linearRegression'"
+    (click)="select('linearRegression')">
+    <mat-icon>analytics</mat-icon>
+    Régression (prochaine heure)
+  </button>
+
+  <button
+    class="tab"
     [class.active]="view === 'movingAverages'"
     (click)="select('movingAverages')">
     <mat-icon>moving</mat-icon>
@@ -40,7 +48,6 @@
 
 </div>
 
-
 <div class="panel">
 
 
@@ -51,7 +58,12 @@
   <app-ecart-type-glissant *ngIf="view === 'ecartTypeGlissant'">
   </app-ecart-type-glissant>
 
-  <app-rsi *ngIf="view === 'rsi'">
+  <app-linear-regression-next-hour
+    *ngIf="view === 'linearRegression'">
+  </app-linear-regression-next-hour>
+
+  <app-rsi
+    *ngIf="view === 'rsi'">
   </app-rsi>
 
   <app-cross-correlation *ngIf="view === 'crossCorrelation'">
