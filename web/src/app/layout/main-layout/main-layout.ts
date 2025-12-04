@@ -39,9 +39,9 @@ interface MarketOverview {
   selector: 'app-main-layout',
   standalone: true,
   imports: [
-    MatExpansionModule, 
-    CommonModule, 
-    RouterModule, 
+    MatExpansionModule,
+    CommonModule,
+    RouterModule,
     FormsModule,
     MatDatepickerModule,
     MatInputModule,
@@ -50,7 +50,7 @@ interface MarketOverview {
     MatIconModule,
     MatSelectModule,
     MatButtonModule,
-    MatSlideToggleModule
+    MatSlideToggleModule,
   ],
   templateUrl: './main-layout.html',
   styleUrls: ['./main-layout.css'],
@@ -64,6 +64,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     { route: 'analytics', icon: 'analytics', label: 'Analytics' },
     { route: 'health-check', icon: 'health_and_safety', label: 'Health Check' },
     { route: 'news', icon: 'newspaper', label: 'News' },
+    { route: 'correlation', icon: 'link', label: 'Correlation' },
   ];
 
   // Date range filter system - Period A
@@ -80,7 +81,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   newsFilters: NewsFilters = {
     section: 'all',
     dateRange: 'all',
-    searchTerm: ''
+    searchTerm: '',
   };
 
   // News statistics
@@ -95,25 +96,25 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       name: 'Bitcoin',
       price: 0,
       change24h: 0,
-      changePercent24h: 0
+      changePercent24h: 0,
     },
     ethereum: {
       symbol: 'ETH',
       name: 'Ethereum',
       price: 0,
       change24h: 0,
-      changePercent24h: 0
+      changePercent24h: 0,
     },
     totalMarketCap: {
       value: '$0.00T',
-      change: 0
-    }
+      change: 0,
+    },
   };
 
   constructor(
     private router: Router,
     private storeService: StoreService,
-    private apiService: ApiService
+    private apiService: ApiService,
   ) {}
 
   ngOnInit() {
@@ -127,11 +128,13 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.updateSelectedTab(this.router.url);
 
     // Subscribe to news statistics
-    this.statisticsSubscription = this.storeService.newsStatistics$.subscribe((stats: NewsStatistics) => {
-      this.totalNewsCount = stats.totalCount;
-      this.todayNewsCount = stats.todayCount;
-      this.lastUpdateTime = stats.lastUpdateTime;
-    });
+    this.statisticsSubscription = this.storeService.newsStatistics$.subscribe(
+      (stats: NewsStatistics) => {
+        this.totalNewsCount = stats.totalCount;
+        this.todayNewsCount = stats.todayCount;
+        this.lastUpdateTime = stats.lastUpdateTime;
+      },
+    );
 
     // Load market data
     this.loadMarketData();
@@ -187,7 +190,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   setQuickRange(preset: string): void {
     this.selectedPreset = preset;
     const now = new Date();
-    
+
     switch (preset) {
       case '24h':
         this.startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -208,14 +211,14 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       default:
         break;
     }
-    
+
     this.updateAnalyticsFilters();
   }
 
   setQuickRangeB(preset: string): void {
     this.selectedPresetB = preset;
     const now = new Date();
-    
+
     switch (preset) {
       case '24h':
         this.startDateB = new Date(now.getTime() - 48 * 60 * 60 * 1000); // 48h ago
@@ -236,7 +239,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       default:
         break;
     }
-    
+
     this.updateAnalyticsFilters();
   }
 
@@ -245,16 +248,16 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       periodA: {
         startDate: this.startDate,
         endDate: this.endDate,
-        preset: this.selectedPreset
+        preset: this.selectedPreset,
       },
       periodB: {
         startDate: this.startDateB,
         endDate: this.endDateB,
-        preset: this.selectedPresetB
+        preset: this.selectedPresetB,
       },
-      timestamp: new Date().getTime()
+      timestamp: new Date().getTime(),
     };
-    
+
     // Update date range in store service (keeping Period A as primary)
     this.storeService.setDateRange(this.startDate, this.endDate);
     this.storeService.setData('ALL', filterData);
@@ -265,21 +268,21 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     this.endDate = new Date();
     this.selectedPreset = '7d';
-    
+
     // Reset Period B
     this.startDateB = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     this.endDateB = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     this.selectedPresetB = '7d';
-    
+
     this.updateAnalyticsFilters();
   }
 
   getPageTitle(): string {
     const titles: { [key: string]: string } = {
       home: 'Accueil',
-      analytics: 'Analytics', 
+      analytics: 'Analytics',
       'health-check': 'Health Check',
-      news: 'News'
+      news: 'News',
     };
     return titles[this.selectedTab] || 'CryptoViz';
   }
@@ -289,7 +292,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       home: "Bienvenue sur la page d'accueil",
       analytics: 'Analyses détaillées et statistiques',
       'health-check': 'État du système et performances',
-      news: 'Actualités crypto et tendances du marché'
+      news: 'Actualités crypto et tendances du marché',
     };
     return descriptions[this.selectedTab] || '';
   }
@@ -304,7 +307,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     this.newsFilters = {
       section: 'all',
       dateRange: 'all',
-      searchTerm: ''
+      searchTerm: '',
     };
     this.storeService.setNewsFilters(this.newsFilters);
   }
@@ -321,29 +324,29 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       next: (data: any) => {
         if (data) {
           const cryptos = data.major_cryptos || [];
-          
+
           const btcData = cryptos.find((crypto: any) => crypto.symbol === 'BTC');
           const ethData = cryptos.find((crypto: any) => crypto.symbol === 'ETH');
-          
+
           this.marketOverview = {
             bitcoin: {
               symbol: btcData?.symbol || 'BTC',
               name: btcData?.name || 'Bitcoin',
               price: btcData ? parseFloat(String(btcData.price).replace(/[$,]/g, '')) : 0,
               change24h: btcData?.change_24h_value || 0,
-              changePercent24h: btcData?.change_24h_value || 0
+              changePercent24h: btcData?.change_24h_value || 0,
             },
             ethereum: {
               symbol: ethData?.symbol || 'ETH',
               name: ethData?.name || 'Ethereum',
               price: ethData ? parseFloat(String(ethData.price).replace(/[$,]/g, '')) : 0,
               change24h: ethData?.change_24h_value || 0,
-              changePercent24h: ethData?.change_24h_value || 0
+              changePercent24h: ethData?.change_24h_value || 0,
             },
             totalMarketCap: {
               value: data.total_market_cap || '$0.00T',
-              change: data.market_cap_change_value || 0
-            }
+              change: data.market_cap_change_value || 0,
+            },
           };
         } else {
           this.marketOverview = this.getEmptyMarketOverview();
@@ -352,7 +355,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       error: (error: any) => {
         console.error('Error loading market data:', error);
         this.marketOverview = this.getEmptyMarketOverview();
-      }
+      },
     });
   }
 
@@ -363,26 +366,26 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
         name: 'Bitcoin',
         price: 0,
         change24h: 0,
-        changePercent24h: 0
+        changePercent24h: 0,
       },
       ethereum: {
         symbol: 'ETH',
         name: 'Ethereum',
         price: 0,
         change24h: 0,
-        changePercent24h: 0
+        changePercent24h: 0,
       },
       totalMarketCap: {
         value: '$0.00T',
-        change: 0
-      }
+        change: 0,
+      },
     };
   }
 
   formatPrice(price: number): string {
     return new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0
+      maximumFractionDigits: 0,
     }).format(price);
   }
 }

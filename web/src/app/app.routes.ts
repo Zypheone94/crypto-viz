@@ -4,6 +4,7 @@ import { Analytics } from './component/analytics/analytics';
 import { HealthCheck } from './component/health-check/health-check';
 import { NewsComponent } from './component/news/news';
 import { MainLayoutComponent } from './layout/main-layout/main-layout';
+import { Correlation } from './component/correlation/correlation';
 
 export const routes: Routes = [
   {
@@ -15,6 +16,7 @@ export const routes: Routes = [
       { path: 'analytics', component: Analytics, title: 'Analytics' },
       { path: 'health-check', component: HealthCheck, title: 'Health Check' },
       { path: 'news', component: NewsComponent, title: 'News' },
+      { path: 'correlation', component: Correlation, title: 'Correlation' },
     ],
   },
   { path: '**', redirectTo: '', pathMatch: 'full' }, // Redirection vers la racine
