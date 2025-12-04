@@ -1,5 +1,3 @@
-# ingestor/scraper/component/scraperdb/ml_predictor.py
-
 from __future__ import annotations
 
 from datetime import datetime
@@ -34,37 +32,9 @@ except Exception as e:
 def predict_symbol_window(
     symbol: str,
     date_start: Optional[str | datetime] = None,
+    max_windows_to_try: int = 50,
 ) -> Dict[str, Any]:
-    """
-    Prédit le mouvement d'un symbole sur une fenêtre d'une heure (ou autre, selon window_label).
 
-    Entrées :
-      - symbol : ex "BTC", "ETH", "SOL"
-      - date_start : début de la fenêtre. Si :
-          * None      -> on prend la DERNIÈRE fenêtre delta pour ce symbol
-          * str       -> parsée en ISO (ex '2025-11-20T12:00:00')
-          * datetime  -> utilisée telle quelle
-
-    Sortie : dict au format style API :
-    {
-      "success": True/False,
-      "message": "...",
-      "data": {
-          "symbol": "...",
-          "window_label": "1h",
-          "date_start": ...,
-          "date_end": ...,
-          "price_now": ...,
-          "delta_pct_pred": ...,
-          "delta_pct_real": ...,
-          "prob_up": ...,
-          "price_pred": ...,
-          "features_used": { ... }
-      }
-    }
-    """
-
-    # Vérifier que les modèles sont bien chargés
     if reg_model is None or clf_model is None:
         return {
             "success": False,
@@ -72,10 +42,8 @@ def predict_symbol_window(
             "data": None,
         }
 
-    # Normalisation du symbol
     symbol = symbol.upper().strip()
 
-    # Parsing de la date_start si besoin
     parsed_date_start: Optional[datetime] = None
     if isinstance(date_start, datetime):
         parsed_date_start = date_start
@@ -89,8 +57,6 @@ def predict_symbol_window(
                 "message": f"Format de date_start invalide : {date_start} ({e})",
                 "data": None,
             }
-
-    # Connexion DB
     try:
         con = mysql.connector.connect(**MYSQL_CONFIG)
     except Exception as e:
@@ -101,14 +67,13 @@ def predict_symbol_window(
         }
 
     try:
-        # 1) Récupérer la ligne delta pour ce symbole + date_start (ou dernière)
         if parsed_date_start is None:
-            delta_query = """
+            delta_query = f"""
                 SELECT symbol, date_start, date_end, window_label, delta_pct
                 FROM delta
                 WHERE symbol = %s
                 ORDER BY date_start DESC
-                LIMIT 1
+                LIMIT {max_windows_to_try}
             """
             delta_df = pd.read_sql(delta_query, con, params=(symbol,))
         else:
@@ -125,91 +90,95 @@ def predict_symbol_window(
         if delta_df.empty:
             return {
                 "success": False,
-                "message": f"Aucune fenêtre delta trouvée pour {symbol} "
-                           f"{'(dernière fenêtre)' if parsed_date_start is None else f'avec date_start={parsed_date_start}'}",
+                "message": (
+                    f"Aucune fenêtre delta trouvée pour {symbol} "
+                    f"{'(dernières fenêtres)' if parsed_date_start is None else f'avec date_start={parsed_date_start}'}"
+                ),
                 "data": None,
             }
 
-        drow = delta_df.iloc[0]
-        dt_start = pd.to_datetime(drow["date_start"])
-        window_label = drow["window_label"]
-        win_delta = _parse_window_label(window_label)
-        dt_end = dt_start + win_delta
-        delta_pct_real = float(drow["delta_pct"])
+        last_error_msg = None
+        for _, drow in delta_df.iterrows():
+            dt_start = pd.to_datetime(drow["date_start"])
+            window_label = drow["window_label"]
+            win_delta = _parse_window_label(window_label)
+            dt_end = dt_start + win_delta
 
-        # 2) Récupérer les articles de ce symbole dans la fenêtre [start, end)
-        art_query = """
-            SELECT fetched_at, price, market_cap, coin_circulating, volume_24h
-            FROM article
-            WHERE symbol = %s
-              AND fetched_at >= %s
-              AND fetched_at <  %s
-        """
-        art_df = pd.read_sql(art_query, con, params=(symbol, dt_start, dt_end))
+            delta_pct_real = float(drow["delta_pct"])
+            art_query = """
+                SELECT fetched_at, price, market_cap, coin_circulating, volume_24h
+                FROM article
+                WHERE symbol = %s
+                  AND fetched_at >= %s
+                  AND fetched_at <  %s
+            """
+            art_df = pd.read_sql(art_query, con, params=(symbol, dt_start, dt_end))
 
-        if art_df.empty:
+            if art_df.empty:
+                last_error_msg = (
+                    f"Aucun article trouvé pour {symbol} entre {dt_start} et {dt_end} "
+                    f"(fenêtre {window_label})"
+                )
+                continue
+
+            art_df["price"] = pd.to_numeric(art_df["price"], errors="coerce")
+            art_df["market_cap"] = pd.to_numeric(art_df["market_cap"], errors="coerce")
+            art_df["coin_circulating"] = pd.to_numeric(art_df["coin_circulating"], errors="coerce")
+            art_df["volume_24h"] = pd.to_numeric(art_df["volume_24h"], errors="coerce")
+
+            art_df = art_df.dropna(subset=["price"])
+            if art_df.empty:
+                last_error_msg = (
+                    f"Aucun article exploitable (price NULL) pour {symbol} "
+                    f"entre {dt_start} et {dt_end} (fenêtre {window_label})"
+                )
+                continue
+            nb_articles = int(len(art_df))
+            avg_price = float(art_df["price"].mean())
+            avg_market_cap = float(art_df["market_cap"].mean()) if art_df["market_cap"].notna().any() else 0.0
+            avg_circulating = float(art_df["coin_circulating"].mean()) if art_df["coin_circulating"].notna().any() else 0.0
+            avg_volume = float(art_df["volume_24h"].mean()) if art_df["volume_24h"].notna().any() else 0.0
+
+            art_df = art_df.sort_values("fetched_at")
+            price_now = float(art_df["price"].iloc[-1])
+
+            features_used = {
+                "nb_articles": nb_articles,
+                "avg_volume": avg_volume,
+                "avg_price": avg_price,
+                "avg_market_cap": avg_market_cap,
+                "avg_circulating": avg_circulating,
+            }
+
+            X = pd.DataFrame([features_used])
+            delta_pred = float(reg_model.predict(X)[0])
+            prob_up = float(clf_model.predict_proba(X)[0, 1])
+
+            price_pred = price_now * (1.0 + delta_pred / 100.0)
+            target_ts = dt_end
+
             return {
-                "success": False,
-                "message": f"Aucun article trouvé pour {symbol} entre {dt_start} et {dt_end}",
-                "data": None,
+                "success": True,
+                "message": "Prédiction calculée avec succès",
+                "data": {
+                    "symbol": symbol,
+                    "window_label": window_label,
+                    "date_start": dt_start,
+                    "date_end": dt_end,
+                    "target_ts": target_ts,
+                    "price_now": price_now,
+                    "delta_pct_pred": delta_pred,
+                    "delta_pct_real": delta_pct_real,
+                    "prob_up": prob_up,
+                    "price_pred": price_pred,
+                    "features_used": features_used,
+                },
             }
-
-        # Cast des colonnes numériques
-        art_df["price"] = pd.to_numeric(art_df["price"], errors="coerce")
-        art_df["market_cap"] = pd.to_numeric(art_df["market_cap"], errors="coerce")
-        art_df["coin_circulating"] = pd.to_numeric(art_df["coin_circulating"], errors="coerce")
-        art_df["volume_24h"] = pd.to_numeric(art_df["volume_24h"], errors="coerce")
-
-        art_df = art_df.dropna(subset=["price"])
-        if art_df.empty:
-            return {
-                "success": False,
-                "message": f"Aucun article exploitable (price NULL) pour {symbol} entre {dt_start} et {dt_end}",
-                "data": None,
-            }
-
-        # 3) Calcul des features (mêmes que pour le training)
-        nb_articles = int(len(art_df))
-        avg_price = float(art_df["price"].mean())
-        avg_market_cap = float(art_df["market_cap"].mean()) if art_df["market_cap"].notna().any() else 0.0
-        avg_circulating = float(art_df["coin_circulating"].mean()) if art_df["coin_circulating"].notna().any() else 0.0
-        avg_volume = float(art_df["volume_24h"].mean()) if art_df["volume_24h"].notna().any() else 0.0
-
-        art_df = art_df.sort_values("fetched_at")
-        price_now = float(art_df["price"].iloc[-1])
-
-        features_used = {
-            "nb_articles": nb_articles,
-            "avg_volume": avg_volume,
-            "avg_price": avg_price,
-            "avg_market_cap": avg_market_cap,
-            "avg_circulating": avg_circulating,
-        }
-
-        # 4) Construire X pour le modèle
-        X = pd.DataFrame([features_used])
-
-        # 5) Prédictions
-        delta_pred = float(reg_model.predict(X)[0])
-        prob_up = float(clf_model.predict_proba(X)[0, 1])
-
-        price_pred = price_now * (1.0 + delta_pred / 100.0)
-
         return {
-            "success": True,
-            "message": "Prédiction calculée avec succès",
-            "data": {
-                "symbol": symbol,
-                "window_label": window_label,
-                "date_start": dt_start,
-                "date_end": dt_end,
-                "price_now": price_now,
-                "delta_pct_pred": delta_pred,
-                "delta_pct_real": delta_pct_real,  # pour debug / comparaison
-                "prob_up": prob_up,
-                "price_pred": price_pred,
-                "features_used": features_used,
-            },
+            "success": False,
+            "message": last_error_msg
+            or f"Aucune fenêtre delta exploitable pour {symbol} (pas d'articles dans les {max_windows_to_try} dernières fenêtres).",
+            "data": None,
         }
 
     except Exception as e:

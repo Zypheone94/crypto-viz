@@ -263,8 +263,14 @@ export class ApiService {
       .pipe(map((payload) => this.extractResponse(payload)));
   }
 
-  getLinearRegressionPrediction(symbol: string) {
-    return this.http.get(`${this.baseUrl}/ml/linear-regression/${symbol}/prediction`);
+  getLinearRegressionPrediction(symbol: string, dateStart?: string): Observable<any> {
+    let params = new HttpParams().set('symbol', symbol);
+
+    if (dateStart) {
+      params = params.set('date_start', dateStart);
+    }
+
+    return this.http.get<any>(`${this.baseUrl}/api/ml/predict`, { params });
   }
 
   getSymbols(): Observable<any> {

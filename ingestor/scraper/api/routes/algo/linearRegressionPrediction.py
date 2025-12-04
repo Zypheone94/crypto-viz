@@ -5,14 +5,14 @@ from ingestor.scraper.api.utils.json_api_res_template import JsonApiTemplate
 from ingestor.scraper.component.scraperdb.mlpredictor import predict_symbol_window
 
 router = APIRouter(
-    prefix="/ml",
+    prefix="/api",
     tags=["ml"],
 )
 
 ApiResponse = JsonApiTemplate("api")
 
 
-@router.get("/api/predict")
+@router.get("/ml/predict")
 async def predict_endpoint(symbol: str, date_start: str | None = None):
     result = predict_symbol_window(symbol, date_start)
 

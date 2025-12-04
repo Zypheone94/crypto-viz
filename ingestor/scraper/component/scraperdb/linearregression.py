@@ -14,7 +14,7 @@ from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 import joblib
 
 MYSQL_CONFIG = {
-    "host": "localhost",
+    "host":"host.docker.internal",
     "user": "ingestor_user",
     "password": "password123",
     "database": "ingestor",

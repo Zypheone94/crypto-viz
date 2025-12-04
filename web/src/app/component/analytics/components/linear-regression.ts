@@ -62,7 +62,7 @@ interface SymbolOption {
 
                 <mat-option *ngIf="isSymbolsLoading" disabled>
                   <mat-spinner diameter="20"></mat-spinner>
-                  &nbsp; Chargement des symboles...
+                  Chargement des symboles...
                 </mat-option>
 
                 <ng-container *ngIf="!isSymbolsLoading">
@@ -134,8 +134,6 @@ interface SymbolOption {
                   </div>
                 </mat-card-content>
               </mat-card>
-
-              <!-- Dernier prix observé -->
               <mat-card class="stat-card" *ngIf="prediction.last_price != null">
                 <mat-card-content>
                   <div class="stat-content">
@@ -476,12 +474,11 @@ export class LinearRegressionNextHourComponent implements OnInit {
   private loadSymbols(): void {
     this.isSymbolsLoading = true;
     this.symbolsError = '';
-
     this.apiService.getSymbols().subscribe({
       next: (res: any) => {
         this.isSymbolsLoading = false;
         const rawData =
-          res?.response?.data ??
+          res?.response ??
           res?.data ??
           res;
 
@@ -493,22 +490,32 @@ export class LinearRegressionNextHourComponent implements OnInit {
           items = rawData.results;
         }
 
-        this.symbols = items.map((row: any): SymbolOption => {
-          const code = row.symbol || row.code || row.ticker || '';
-          const name = row.name || row.label || '';
-          return {
-            code,
-            label: name ? `${code} (${name})` : code
-          };
-        }).filter(s => !!s.code);
+        this.symbols = items
+          .map((row: any): SymbolOption => {
+            if (typeof row === 'string') {
+              return {
+                code: row,
+                label: row
+              };
+            }
+            const code = row.symbol || row.code || row.ticker || '';
+            const name = row.name || row.label || '';
+            return {
+              code,
+              label: name ? `${code} (${name})` : code
+            };
+          })
+          .filter(s => !!s.code);
 
         if (!this.symbols.length) {
           this.symbolsError = 'Aucun symbole disponible.';
           return;
         }
+
         if (!this.selectedSymbol) {
           this.selectedSymbol = this.symbols[0].code;
         }
+
         this.loadPrediction();
       },
       error: (err) => {
@@ -521,6 +528,7 @@ export class LinearRegressionNextHourComponent implements OnInit {
       }
     });
   }
+
 
   onSymbolChange(): void {
     if (!this.selectedSymbol) return;
@@ -547,9 +555,6 @@ loadPrediction(): void {
     next: (res: any) => {
       console.log('Linear regression prediction response:', res);
       this.isLoading = false;
-
-      // Si un jour tu repasses par JsonApiTemplate côté back,
-      // tu pourras faire un petit extract ici :
       const raw =
         res?.response?.data ??
         res?.data ??
@@ -557,8 +562,6 @@ loadPrediction(): void {
 
       const payload: LinearRegressionPredictionResponse = {
         symbol: raw.symbol || symbol,
-        // on considère que le back renvoie date_end ou target_ts ;
-        // sinon on fallback sur "maintenant"
         target_ts: raw.target_ts || raw.date_end || new Date().toISOString(),
         prediction: Number(raw.prediction ?? raw.price_pred ?? 0),
         last_observation_ts: raw.last_observation_ts || raw.date_start,
