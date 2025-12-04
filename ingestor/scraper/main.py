@@ -4,6 +4,7 @@ from api.routes import health, data, symbols
 from api.routes.analytics import metrics
 from api.routes.algo import average, random_forest
 from api.routes import market_route
+from api.routes.algo import linearRegressionPrediction
 from api.utils.middleware import Middleware
 import os
 from dotenv import load_dotenv
@@ -38,6 +39,7 @@ app.include_router(average.router)
 app.include_router(market_route.router)
 app.include_router(random_forest.router)
 app.include_router(symbols.router)
+app.include_router(linearRegressionPrediction.router)
 app.include_router(pearson.router)
 """
 REMINDER : You must start your api path by : 
