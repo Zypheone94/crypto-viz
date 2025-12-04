@@ -1,28 +1,50 @@
 /* You can add global styles to this file, and also import other style files */
+@import './theme-variables.css';
 
-/* app-layout.component.scss - Design moderne et propre */
+/* ==================== GLOBAL RESET & BASE STYLES ==================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background: var(--bg-gradient);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ==================== APP LAYOUT ==================== */
 .layout-container {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  background: var(--bg-gradient);
   overflow: hidden;
+  transition: background var(--transition-normal);
 }
 
 /* === HEADER MODERNE === */
 .header {
   height: 70px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--glass-bg);
+  backdrop-filter: var(--backdrop-blur);
+  border-bottom: 1px solid var(--border-light);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 30px;
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  padding: 0 var(--space-xl);
+  box-shadow: var(--shadow-md);
   position: relative;
-  z-index: 1000;
+  z-index: var(--z-sticky);
 
   .header-left {
     display: flex;
@@ -43,10 +65,11 @@
         margin: 0;
         font-size: 22px;
         font-weight: 700;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--primary-gradient-start) 0%, var(--primary-gradient-end) 100%);
         background-clip: text;
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
+        letter-spacing: -0.5px;
       }
     }
 
@@ -57,12 +80,12 @@
       .nav-link {
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 12px 20px;
+        gap: var(--space-sm);
+        padding: var(--space-md) var(--space-lg);
         text-decoration: none;
-        color: #64748b;
-        border-radius: 12px;
-        transition: all 0.3s ease;
+        color: var(--text-secondary);
+        border-radius: var(--radius-lg);
+        transition: all var(--transition-normal);
         font-weight: 500;
         font-size: 14px;
         position: relative;
@@ -75,15 +98,15 @@
           left: -100%;
           width: 100%;
           height: 100%;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          transition: left 0.3s ease;
+          background: linear-gradient(135deg, var(--primary-gradient-start) 0%, var(--primary-gradient-end) 100%);
+          transition: left var(--transition-normal);
           z-index: -1;
         }
 
         &:hover {
-          color: white;
+          color: var(--text-inverse);
           transform: translateY(-2px);
-          box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+          box-shadow: var(--shadow-primary);
 
           &::before {
             left: 0;
@@ -91,9 +114,9 @@
         }
 
         &.active {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+          background: linear-gradient(135deg, var(--primary-gradient-start) 0%, var(--primary-gradient-end) 100%);
+          color: var(--text-inverse);
+          box-shadow: var(--shadow-primary);
 
           &::before {
             left: 0;
@@ -120,20 +143,21 @@
       .action-btn {
         width: 40px;
         height: 40px;
-        border: none;
-        background: rgba(100, 116, 139, 0.1);
-        border-radius: 10px;
+        border: 1px solid var(--border-light);
+        background: var(--bg-card);
+        border-radius: var(--radius-md);
         cursor: pointer;
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: all 0.3s ease;
-        color: #64748b;
+        transition: all var(--transition-fast);
+        color: var(--text-secondary);
 
         &:hover {
-          background: rgba(102, 126, 234, 0.1);
-          color: #667eea;
-          transform: scale(1.1);
+          background: var(--primary-light);
+          color: var(--primary);
+          transform: scale(1.05);
+          border-color: var(--primary);
         }
 
         span {
@@ -405,26 +429,27 @@
   overflow: hidden;
 
   .content-header {
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(20px);
-    padding: 25px 35px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    background: var(--glass-bg);
+    backdrop-filter: var(--backdrop-blur);
+    padding: var(--space-xl) calc(var(--space-xl) + var(--space-md));
+    border-bottom: 1px solid var(--border-light);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow-sm);
 
     .page-title {
       h2 {
-        margin: 0 0 5px 0;
+        margin: 0 0 var(--space-xs) 0;
         font-size: 28px;
         font-weight: 700;
-        color: #1f2937;
+        color: var(--text-primary);
+        letter-spacing: -0.5px;
       }
 
       .page-description {
         margin: 0;
-        color: #6b7280;
+        color: var(--text-secondary);
         font-size: 14px;
         font-weight: 500;
       }
@@ -472,9 +497,9 @@
 
   .content-body {
     flex: 1;
-    padding: 35px;
+    padding: var(--space-2xl);
     overflow-y: auto;
-    background: whitesmoke;
+    background: var(--bg-secondary);
 
     ::ng-deep {
       .placeholder-content,

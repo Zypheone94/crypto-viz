@@ -27,10 +27,10 @@ def load_from_db() -> pl.LazyFrame:
     """
     try:
         con = mysql.connector.connect(
-            host="host.docker.internal",
-            user="ingestor_user",
-            password="password123",
-            database="ingestor"
+            host=os.getenv("MYSQL_HOST", "host.docker.internal"),
+            user=os.getenv("MYSQL_USER", "root"),
+            password=os.getenv("MYSQL_PASSWORD", ""),
+            database=os.getenv("MYSQL_DATABASE", "ingestor")
         )
     except Exception as e:
         logger.error(f"Impossible de se connecter à MySQL : {e}")

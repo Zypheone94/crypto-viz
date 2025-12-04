@@ -1,13 +1,10 @@
 from fastapi import APIRouter, Query, HTTPException
 from typing import Dict, Any
 from datetime import datetime, timezone, timedelta
-import sqlite3
-from pathlib import Path
+import mysql.connector
+import os
 
 from ..utils import JsonApiTemplate
-
-# Use container database path
-DB_PATH = Path("/app/ingestor/scraper/component/scraperdb/data/ingestor.db")
 
 router = APIRouter(
     prefix="/api",
@@ -17,10 +14,17 @@ router = APIRouter(
 ApiResponse = JsonApiTemplate("api")
 
 def get_db_connection():
-    """Get database connection"""
-    if not DB_PATH.exists():
-        raise HTTPException(status_code=500, detail=f"Database not found at {DB_PATH}")
-    return sqlite3.connect(str(DB_PATH))
+    """Get MySQL database connection"""
+    try:
+        connection = mysql.connector.connect(
+            host=os.getenv("MYSQL_HOST", "host.docker.internal"),
+            user=os.getenv("MYSQL_USER", "root"),
+            password=os.getenv("MYSQL_PASSWORD", ""),
+            database=os.getenv("MYSQL_DATABASE", "ingestor")
+        )
+        return connection
+    except mysql.connector.Error as err:
+        raise HTTPException(status_code=500, detail=f"MySQL connection error: {err}")
 
 
 def _fetch_top_gainers_data(limit: int) -> Dict[str, Any]:
@@ -34,7 +38,7 @@ def _fetch_top_gainers_data(limit: int) -> Dict[str, Any]:
                 a1.name,
                 a1.price as current_price,
                 a1.market_cap,
-                a1.fetched_at as current_date,
+                a1.fetched_at as fetched_date,
                 LAG(a1.price) OVER (PARTITION BY a1.symbol ORDER BY a1.fetched_at) as prev_price,
                 CASE 
                     WHEN LAG(a1.price) OVER (PARTITION BY a1.symbol ORDER BY a1.fetched_at) IS NOT NULL 
@@ -50,8 +54,8 @@ def _fetch_top_gainers_data(limit: int) -> Dict[str, Any]:
                 current_price,
                 market_cap,
                 price_change_pct,
-                current_date,
-                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY current_date DESC) as rn
+                fetched_date,
+                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fetched_date DESC) as rn
             FROM price_changes
             WHERE price_change_pct > 0
         )
@@ -61,14 +65,15 @@ def _fetch_top_gainers_data(limit: int) -> Dict[str, Any]:
             current_price,
             price_change_pct,
             market_cap,
-            current_date
+            fetched_date
         FROM latest_data
         WHERE rn = 1
         ORDER BY price_change_pct DESC
-        LIMIT ?
+        LIMIT %s
         '''
         
-        results = cursor.execute(query, (limit,)).fetchall()
+        cursor.execute(query, (limit,))
+        results = cursor.fetchall()
         gainers = []
         total_volume = 0
         total_gain = 0
@@ -122,7 +127,7 @@ def _fetch_top_losers_data(limit: int) -> Dict[str, Any]:
                 a1.name,
                 a1.price as current_price,
                 a1.market_cap,
-                a1.fetched_at as current_date,
+                a1.fetched_at as fetched_date,
                 LAG(a1.price) OVER (PARTITION BY a1.symbol ORDER BY a1.fetched_at) as prev_price,
                 CASE 
                     WHEN LAG(a1.price) OVER (PARTITION BY a1.symbol ORDER BY a1.fetched_at) IS NOT NULL 
@@ -138,8 +143,8 @@ def _fetch_top_losers_data(limit: int) -> Dict[str, Any]:
                 current_price,
                 market_cap,
                 price_change_pct,
-                current_date,
-                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY current_date DESC) as rn
+                fetched_date,
+                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fetched_date DESC) as rn
             FROM price_changes
             WHERE price_change_pct < 0
         )
@@ -149,14 +154,15 @@ def _fetch_top_losers_data(limit: int) -> Dict[str, Any]:
             current_price,
             price_change_pct,
             market_cap,
-            current_date
+            fetched_date
         FROM latest_data
         WHERE rn = 1
         ORDER BY price_change_pct ASC
-        LIMIT ?
+        LIMIT %s
         '''
         
-        results = cursor.execute(query, (limit,)).fetchall()
+        cursor.execute(query, (limit,))
+        results = cursor.fetchall()
         losers = []
         total_volume = 0
         total_loss = 0
@@ -249,8 +255,10 @@ def _fetch_market_overview_data() -> Dict[str, Any]:
         WHERE rn = 1
         '''
         
-        crypto_results = cursor.execute(major_cryptos_query).fetchall()
-        total_cap_result = cursor.execute(total_market_cap_query).fetchone()
+        cursor.execute(major_cryptos_query)
+        crypto_results = cursor.fetchall()
+        cursor.execute(total_market_cap_query)
+        total_cap_result = cursor.fetchone()
         
         cryptos = []
         for row in crypto_results:
@@ -290,7 +298,7 @@ def _fetch_market_stats_data() -> Dict[str, Any]:
                 WHEN url LIKE '%coingecko%' THEN 'coingecko'
                 WHEN url LIKE '%binance%' THEN 'binance'
                 WHEN url LIKE '%crypto%' THEN 'crypto_news'
-                ELSE SUBSTR(url, 1, INSTR(url, '/') + INSTR(SUBSTR(url, INSTR(url, '/') + 1), '/'))
+                ELSE SUBSTRING_INDEX(url, '/', 3)
             END
         ) as unique_sources
         FROM article 
@@ -300,19 +308,19 @@ def _fetch_market_stats_data() -> Dict[str, Any]:
         today_articles_query = '''
         SELECT COUNT(*) as daily_articles
         FROM article 
-        WHERE DATE(fetched_at) = DATE('now')
+        WHERE DATE(fetched_at) = CURDATE()
         '''
         
         yesterday_articles_query = '''
         SELECT COUNT(*) as yesterday_articles
         FROM article 
-        WHERE DATE(fetched_at) = DATE('now', '-1 day')
+        WHERE DATE(fetched_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
         '''
         
         month_articles_query = '''
         SELECT COUNT(*) as month_articles
         FROM article 
-        WHERE strftime('%Y-%m', fetched_at) = strftime('%Y-%m', 'now')
+        WHERE DATE_FORMAT(fetched_at, '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m')
         '''
         
         total_articles_query = '''
@@ -326,12 +334,18 @@ def _fetch_market_stats_data() -> Dict[str, Any]:
         WHERE symbol IS NOT NULL
         '''
         
-        sources_result = cursor.execute(sources_query).fetchone()
-        today_result = cursor.execute(today_articles_query).fetchone()
-        yesterday_result = cursor.execute(yesterday_articles_query).fetchone()
-        month_result = cursor.execute(month_articles_query).fetchone()
-        total_articles_result = cursor.execute(total_articles_query).fetchone()
-        symbols_result = cursor.execute(symbols_query).fetchone()
+        cursor.execute(sources_query)
+        sources_result = cursor.fetchone()
+        cursor.execute(today_articles_query)
+        today_result = cursor.fetchone()
+        cursor.execute(yesterday_articles_query)
+        yesterday_result = cursor.fetchone()
+        cursor.execute(month_articles_query)
+        month_result = cursor.fetchone()
+        cursor.execute(total_articles_query)
+        total_articles_result = cursor.fetchone()
+        cursor.execute(symbols_query)
+        symbols_result = cursor.fetchone()
         
         sources_count = sources_result[0] if sources_result else 0
         daily_articles = today_result[0] if today_result else 0
@@ -488,11 +502,14 @@ def _compute_trending_symbols(limit: int, window_hours: int) -> Dict[str, Any]:
             cursor = con.cursor()
             cursor.execute(
                 """
-                SELECT COALESCE(UPPER(symbol), 'UNKNOWN') as symbol, COUNT(*) as cnt
-                FROM article
-                WHERE symbol IS NOT NULL
-                  AND fetched_at >= ? AND fetched_at < ?
-                GROUP BY UPPER(symbol)
+                SELECT symbol_upper, COUNT(*) as cnt
+                FROM (
+                    SELECT COALESCE(UPPER(symbol), 'UNKNOWN') as symbol_upper
+                    FROM article
+                    WHERE symbol IS NOT NULL
+                      AND fetched_at >= %s AND fetched_at < %s
+                ) AS subquery
+                GROUP BY symbol_upper
                 """,
                 (
                     format_ts(start),
@@ -590,11 +607,27 @@ async def get_market_trending(
 async def get_market_home(
     limit: int = Query(5, ge=1, le=50, description="Number of movers to display")
 ):
+    """
+    Optimized home dashboard endpoint - fetches data in parallel for better performance
+    """
     try:
-        overview = _fetch_market_overview_data()
-        stats = _fetch_market_stats_data()
-        gainers = _fetch_top_gainers_data(limit)
-        losers = _fetch_top_losers_data(limit)
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor
+        
+        # Use thread pool to execute database queries in parallel
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            loop = asyncio.get_event_loop()
+            
+            # Execute all queries in parallel
+            overview_task = loop.run_in_executor(executor, _fetch_market_overview_data)
+            stats_task = loop.run_in_executor(executor, _fetch_market_stats_data)
+            gainers_task = loop.run_in_executor(executor, _fetch_top_gainers_data, limit)
+            losers_task = loop.run_in_executor(executor, _fetch_top_losers_data, limit)
+            
+            # Wait for all queries to complete
+            overview, stats, gainers, losers = await asyncio.gather(
+                overview_task, stats_task, gainers_task, losers_task
+            )
         
         response_data = {
             "overview": overview,
@@ -618,6 +651,8 @@ async def get_market_home(
             }
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return ApiResponse._create_response(
             level="error",
             msg="Error while fetching market home dashboard",

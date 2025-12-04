@@ -17,9 +17,25 @@
     RSI
   </button>
 
-  <button class="tab" [class.active]="view === 'correlation'" (click)="select('correlation')">
+  <button class="tab" [class.active]="view === 'crossCorrelation'" (click)="select('crossCorrelation')">
     <mat-icon>compare_arrows</mat-icon>
-    Corrélation Croisée
+    Corrélation croisée
+  </button>
+
+  <button
+    class="tab"
+    [class.active]="view === 'movingAverages'"
+    (click)="select('movingAverages')">
+    <mat-icon>moving</mat-icon>
+    Moyennes Mobiles
+  </button>
+
+  <button
+    class="tab"
+    [class.active]="view === 'randomForest'"
+    (click)="select('randomForest')">
+    <mat-icon>forest</mat-icon>
+    Random Forest
   </button>
 
 </div>
@@ -38,7 +54,15 @@
   <app-rsi *ngIf="view === 'rsi'">
   </app-rsi>
 
-  <app-cross-correlation *ngIf="view === 'correlation'">
+  <app-cross-correlation *ngIf="view === 'crossCorrelation'">
   </app-cross-correlation>
+
+  <app-moving-averages
+    *ngIf="view === 'movingAverages'">
+  </app-moving-averages>
+
+  <app-random-forest
+    *ngIf="view === 'randomForest'">
+  </app-random-forest>
 
 </div>

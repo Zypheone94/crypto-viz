@@ -51,8 +51,8 @@ export class Home implements OnInit {
 
   quickActions = [
     { route: '/analytics', icon: 'leaderboard', title: 'Explorer les métriques', description: 'Visualisez les séries temporelles, tendances et RSI' },
-    { route: '/news', icon: 'newspaper', title: 'Dernières actualités', description: 'Consultez et filtrez les flux agrégés' },
-    { route: '/health-check', icon: 'health_and_safety', title: 'État du pipeline', description: 'Surveillez l’ingestion et les jobs programmés' }
+    { route: '/health-check', icon: 'health_and_safety', title: 'État du pipeline', description: 'Surveillez l\'ingestion et les jobs programmés' }
+    // News removed - not needed
   ];
 
   constructor(private apiService: ApiService) {}
@@ -61,14 +61,20 @@ export class Home implements OnInit {
     this.loadHomeData();
   }
 
-  private loadHomeData(): void {
+  loadHomeData(): void {
     this.isOverviewLoading = true;
     this.isMoversLoading = true;
     this.overviewError = '';
     this.moversError = '';
 
+    console.log('🔄 Loading home dashboard data...');
+    const startTime = performance.now();
+
     this.apiService.getHomeDashboard(5).subscribe({
       next: (dashboard) => {
+        const loadTime = performance.now() - startTime;
+        console.log(`✅ Home dashboard loaded in ${loadTime.toFixed(0)}ms`);
+
         if (!dashboard) {
           this.overviewError = 'Aucune donnée disponible.';
           this.moversError = 'Aucune donnée disponible.';
@@ -88,19 +94,31 @@ export class Home implements OnInit {
         this.topLosers = this.mapMovements(dashboard.losers);
 
         if (!this.topGainers.length) {
-          this.moversError = 'Aucun gainer disponible pour l’instant.';
+          this.moversError = 'Aucun gainer disponible pour l\'instant.';
         }
         if (!this.topLosers.length) {
-          this.moversError = this.moversError || 'Aucun loser disponible pour l’instant.';
+          this.moversError = this.moversError || 'Aucun loser disponible pour l\'instant.';
         }
 
         this.isOverviewLoading = false;
         this.isMoversLoading = false;
       },
       error: (error) => {
-        console.error('Erreur lors du chargement du tableau de bord', error);
+        const loadTime = performance.now() - startTime;
+        console.error(`Home dashboard failed after ${loadTime.toFixed(0)}ms`, error);
+        
+        // Provide more specific error messages
+        if (error.status === 0) {
+          this.overviewError = 'Impossible de se connecter au serveur. Vérifiez votre connexion.';
+          this.moversError = 'Impossible de se connecter au serveur.';
+        } else if (error.status >= 500) {
+          this.overviewError = 'Erreur serveur. Les services sont peut-être en cours de démarrage...';
+          this.moversError = 'Erreur serveur. Réessayez dans quelques instants.';
+        } else {
         this.overviewError = 'Impossible de charger les données du tableau de bord.';
         this.moversError = 'Impossible de charger les variations du marché.';
+        }
+        
         this.isOverviewLoading = false;
         this.isMoversLoading = false;
       }

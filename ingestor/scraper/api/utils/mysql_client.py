@@ -2,6 +2,7 @@
 
 import mysql.connector
 import polars as pl
+import pandas as pd
 import os
 from typing import List, Any, Optional
 
@@ -11,9 +12,9 @@ def get_mysql_connection():
     try:
         connection = mysql.connector.connect(
             host=os.getenv("MYSQL_HOST", "host.docker.internal"),
-            user=os.getenv("MYSQL_USER", "admin"),
-            password=os.getenv("MYSQL_PASSWORD", "admin"),
-            database=os.getenv("MYSQL_DATABASE", "crypto_viz")
+            user=os.getenv("MYSQL_USER", "root"),
+            password=os.getenv("MYSQL_PASSWORD", ""),
+            database=os.getenv("MYSQL_DATABASE", "ingestor")
         )
         return connection
     except mysql.connector.Error as err:
@@ -55,6 +56,38 @@ def execute_query_polars(query: str, params: Optional[List[Any]] = None) -> pl.D
     except mysql.connector.Error as err:
         print(f"Error executing query: {err}")
         return pl.DataFrame([])
+        
+    finally:
+        if connection:
+            connection.close()
+
+
+def execute_query_pandas(query: str, params: Optional[List[Any]] = None) -> pd.DataFrame:
+    """
+    Execute a MySQL query and return results as a Pandas DataFrame.
+    
+    Args:
+        query: SQL query string with placeholders (%s)
+        params: List of parameters to substitute in query
+    
+    Returns:
+        Pandas DataFrame with query results
+    """
+    connection = get_mysql_connection()
+    if not connection:
+        return pd.DataFrame([])
+    
+    try:
+        if params:
+            df = pd.read_sql_query(query, connection, params=params)
+        else:
+            df = pd.read_sql_query(query, connection)
+        
+        return df
+        
+    except mysql.connector.Error as err:
+        print(f"Error executing query: {err}")
+        return pd.DataFrame([])
         
     finally:
         if connection:

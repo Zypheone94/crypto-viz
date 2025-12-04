@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { catchError, map, Observable, of } from 'rxjs';
+import { catchError, map, Observable, of, timeout, retry } from 'rxjs';
 import { environment } from '../../../env';
 
 import { TimeSeriesParams, TimeSeriesResponse } from '../shared/interface/timeSeries-interface';
@@ -10,9 +10,12 @@ import { TrendingItem } from '../shared/interface/trending-interface';
   providedIn: 'root',
 })
 export class ApiService {
-  public baseUrl = environment.production 
+  public baseUrl = environment.production
     ? `http://api:${environment.apiPort}`
     : `http://localhost:${environment.apiPort}`;
+
+  // API timeout in milliseconds (30 seconds for slow database queries)
+  private readonly API_TIMEOUT = 30000;
 
   constructor(private http: HttpClient) {}
 
@@ -65,7 +68,18 @@ export class ApiService {
     const httpParams = new HttpParams().set('limit', String(limit));
     return this.http
       .get<any>(`${this.baseUrl}/api/market/home`, { params: httpParams })
-      .pipe(map((payload) => this.extractResponse(payload)));
+      .pipe(
+        timeout(this.API_TIMEOUT),
+        retry(1), // Retry once on failure
+        map((payload) => this.extractResponse(payload)),
+        catchError((error) => {
+          console.error('Home dashboard API error:', error);
+          if (error.name === 'TimeoutError') {
+            throw new Error('Le serveur met trop de temps à répondre. Réessayez plus tard.');
+          }
+          throw error;
+        })
+      );
   }
 
   getMarketTrending(params: { window: string; limit?: number }): Observable<TrendingItem[]> {
@@ -90,7 +104,7 @@ export class ApiService {
     date_to?: string;
   }): Observable<any> {
     let httpParams = new HttpParams();
-    
+
     if (params?.period) {
       httpParams = httpParams.set('period', String(params.period));
     }
@@ -106,7 +120,7 @@ export class ApiService {
     if (symbol) {
       httpParams = httpParams.set('symbol', symbol);
     }
-    
+
     const endpoint = symbol ? `/data/ecart-type/${symbol}` : '/data/ecart-type';
     return this.http.get(`${this.baseUrl}${endpoint}`, { params: httpParams })
       .pipe(
@@ -137,7 +151,7 @@ export class ApiService {
     date_to?: string;
   }): Observable<any> {
     let httpParams = new HttpParams();
-    
+
     if (params?.period) {
       httpParams = httpParams.set('period', String(params.period));
     }
@@ -170,7 +184,7 @@ export class ApiService {
     date_to?: string;
   }): Observable<any> {
     let httpParams = new HttpParams();
-    
+
     if (params?.period) {
       httpParams = httpParams.set('period', String(params.period));
     }
@@ -198,7 +212,7 @@ export class ApiService {
     limit?: number;
   }): Observable<any> {
     let httpParams = new HttpParams();
-    
+
     if (params?.period) {
       httpParams = httpParams.set('period', String(params.period));
     }
@@ -220,19 +234,19 @@ export class ApiService {
     // Generate mock rolling standard deviation data
     const data = [];
     const now = new Date();
-    
+
     for (let i = 30; i >= 0; i--) {
       const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
       const baseValue = 2.5;
       const volatility = Math.sin(i * 0.2) * 1.5 + Math.random() * 0.5;
-      
+
       data.push({
         timestamp: date.toISOString(),
         value: Math.max(0.1, baseValue + volatility),
         label: date.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' })
       });
     }
-    
+
     return {
       symbol: 'BTC',
       window_days: 14,
@@ -292,12 +306,12 @@ export class ApiService {
     // Generate mock time series RSI data for a specific symbol
     const timeSeries = [];
     const now = new Date();
-    
+
     for (let i = 20; i >= 0; i--) {
       const date = new Date(now.getTime() - i * 60 * 60 * 1000); // hourly data
       const baseRsi = 50;
       const rsi = Math.max(0, Math.min(100, baseRsi + Math.sin(i * 0.3) * 20 + (Math.random() - 0.5) * 10));
-      
+
       timeSeries.push({
         ts: date.toISOString(),
         price_usd: 40000 + Math.sin(i * 0.2) * 5000 + Math.random() * 1000,
@@ -339,11 +353,11 @@ export class ApiService {
     // Convert frontend parameters to API parameters
     const now = new Date();
     const to = now.toISOString();
-    
+
     // Calculate 'from' time based on baseline (e.g., "24h" -> 24 hours ago)
     const baselineHours = parseInt(params.baseline.replace('h', '')) || 24;
     const from = new Date(now.getTime() - (baselineHours * 60 * 60 * 1000)).toISOString();
-    
+
     // Convert window to bucket format
     const bucket = params.window === '1h' ? 'hour' : 'day';
 
@@ -371,6 +385,67 @@ export class ApiService {
     return this.http
       .get<any>(`${this.baseUrl}/api/market/stats`)
       .pipe(map((payload) => this.extractResponse(payload)));
+  }
+
+  getMovingAverages(params: {
+    from: string;
+    to: string;
+    window: number;
+    ma_type: string;
+    bucket: string;
+    symbol?: string;
+    limit?: number;
+  }): Observable<any> {
+    let httpParams = new HttpParams()
+      .set('from', params.from)
+      .set('to', params.to)
+      .set('window', String(params.window))
+      .set('ma_type', params.ma_type)
+      .set('bucket', params.bucket);
+
+    if (params.symbol) {
+      httpParams = httpParams.set('symbol', params.symbol);
+    }
+    if (params.limit) {
+      httpParams = httpParams.set('limit', String(params.limit));
+    }
+
+    return this.http.get<any>(`${this.baseUrl}/algo/moving-averages`, { params: httpParams });
+  }
+
+  // Random Forest API methods
+  trainRandomForest(params: {
+    symbol: string | null;
+    n_estimators: number;
+    max_depth: number;
+    test_size: number;
+  }): Observable<any> {
+    let httpParams = new HttpParams()
+      .set('n_estimators', String(params.n_estimators))
+      .set('max_depth', String(params.max_depth))
+      .set('test_size', String(params.test_size));
+
+    if (params.symbol) {
+      httpParams = httpParams.set('symbol', params.symbol);
+    }
+
+    return this.http.post<any>(`${this.baseUrl}/algo/random-forest/train`, {}, { params: httpParams });
+  }
+
+  predictRandomForest(symbol: string, recentCount: number): Observable<any> {
+    const httpParams = new HttpParams()
+      .set('symbol', symbol)
+      .set('recent_count', String(recentCount));
+
+    return this.http.get<any>(`${this.baseUrl}/algo/random-forest/predict`, { params: httpParams });
+  }
+
+  getRandomForestInfo(): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/algo/random-forest/info`);
+  }
+
+  getAvailableSymbols(): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/api/symbols`);
   }
 
   private extractResponse<T = any>(payload: any): T {

@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'scraper', 'api', 'utils'))
-from mysql_client import get_mysql_connection, load_symbol_data
+from mysql_client import load_symbol_data
 
 
 def build_rsi(df: pl.DataFrame, period: int = 14) -> pl.DataFrame:
@@ -104,32 +104,31 @@ def build_rsi(df: pl.DataFrame, period: int = 14) -> pl.DataFrame:
 
 def load_data_from_db(db_path: str | Path = None, limit: int = 1000) -> pl.DataFrame:
     """Load data from MySQL database for RSI analysis."""
-    query = '''
-    SELECT
-        symbol,
-        price as price_usd,
-        date as ts,
-        titre as title,
-        source
-    FROM article
-    WHERE price IS NOT NULL
-      AND symbol IS NOT NULL  
-      AND volume_24h IS NOT NULL
-    ORDER BY symbol, date
-    LIMIT %s
-    '''
-
     try:
-        df = load_symbol_data(query, [limit])
-
+        # Use the load_symbol_data function which already has the correct query
+        df = load_symbol_data(symbol=None, limit=limit)
+        
         if df.height == 0:
             return df
-
+        
+        # Rename columns to match expected names
+        df = df.rename({"ts": "ts"})  # Already named correctly
+        
+        # Ensure price_usd column exists
+        if "price" in df.columns and "price_usd" not in df.columns:
+            df = df.rename({"price": "price_usd"})
+        
+        # Ensure proper data types
         df = df.with_columns([
             pl.col("price_usd").cast(pl.Float64),
-            pl.col("ts").str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC")
         ])
-
+        
+        # Parse timestamp if it's a string
+        if df["ts"].dtype == pl.Utf8:
+            df = df.with_columns([
+                pl.col("ts").str.to_datetime(time_zone="UTC")
+            ])
+        
         return df
 
     except Exception as e:

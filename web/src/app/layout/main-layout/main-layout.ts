@@ -5,6 +5,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { StoreService } from '../../services/store.service';
+import { ThemeService } from '../../services/theme.service';
 import type { NewsStatistics, NewsFilters } from '../../services/store.service';
 import { ApiService } from '../../services/api.service';
 import { Subscription } from 'rxjs';
@@ -17,6 +18,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 interface MarketData {
   symbol: string;
@@ -50,7 +52,8 @@ interface MarketOverview {
     MatIconModule,
     MatSelectModule,
     MatButtonModule,
-    MatSlideToggleModule
+    MatSlideToggleModule,
+    MatTooltipModule
   ],
   templateUrl: './main-layout.html',
   styleUrls: ['./main-layout.css'],
@@ -63,7 +66,7 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
     { route: 'home', icon: 'home', label: 'Accueil' },
     { route: 'analytics', icon: 'analytics', label: 'Analytics' },
     { route: 'health-check', icon: 'health_and_safety', label: 'Health Check' },
-    { route: 'news', icon: 'newspaper', label: 'News' },
+    // { route: 'news', icon: 'newspaper', label: 'News' }, // Removed
   ];
 
   // Date range filter system - Period A
@@ -113,7 +116,8 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
   constructor(
     private router: Router,
     private storeService: StoreService,
-    private apiService: ApiService
+    private apiService: ApiService,
+    public themeService: ThemeService
   ) {}
 
   ngOnInit() {
@@ -384,5 +388,17 @@ export class MainLayoutComponent implements OnInit, OnDestroy {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(price);
+  }
+
+  toggleTheme(): void {
+    this.themeService.toggleTheme();
+  }
+
+  getThemeIcon(): string {
+    return this.themeService.getThemeIcon();
+  }
+
+  getThemeLabel(): string {
+    return this.themeService.getThemeLabel();
   }
 }

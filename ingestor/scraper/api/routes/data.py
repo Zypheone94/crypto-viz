@@ -250,10 +250,13 @@ async def get_symbol_ecart_type_analysis(
             )
             return JSONResponse(content=response, status_code=404)
         
-        # Ensure proper data types
+        # Ensure proper data types - handle various datetime formats
         df = df.with_columns([
             pl.col("price_usd").cast(pl.Float64),
-            pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S.%f", time_zone="UTC")
+            pl.when(pl.col("ts").str.contains("T"))
+              .then(pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S.%f", time_zone="UTC", strict=False))
+              .otherwise(pl.col("ts").str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC", strict=False))
+              .alias("ts")
         ])
         
         # Calculate écart type for this symbol
