@@ -38,40 +38,118 @@ def build_ecart_type(df: pl.DataFrame, period: int = 14) -> pl.DataFrame:
           .sort(["symbol", "ts"])
     )
     
-    result = (
-        df_clean
-        .with_columns([
+    # Check if we have a single symbol (common case for symbol-specific queries)
+    unique_symbols = df_clean["symbol"].n_unique() if "symbol" in df_clean.columns else 1
+    is_single_symbol = unique_symbols == 1
+    
+    # Calculate price changes and log returns
+    # Use .over("symbol") only if multiple symbols, otherwise calculate directly
+    if is_single_symbol:
+        df_with_changes = df_clean.with_columns([
+            (pl.col("price_usd").pct_change() * 100).alias("price_change_pct"),
+            pl.col("price_usd").log().diff().alias("log_returns")
+        ])
+        
+        # Calculate rolling statistics without grouping for single symbol
+        rolling_std = pl.col("price_change_pct").rolling_std(window_size=period)
+        rolling_mean = pl.col("price_change_pct").rolling_mean(window_size=period)
+        
+        df_with_rolling = df_with_changes.with_columns([
+            rolling_std.alias("price_volatility_std"),
+            pl.col("log_returns").rolling_std(window_size=period).alias("log_returns_std"),
+            rolling_mean.alias("price_change_mean"),
+            # Z-score calculation with division by zero protection
+            pl.when(rolling_std > 0)
+              .then((pl.col("price_change_pct") - rolling_mean) / rolling_std)
+              .otherwise(pl.lit(None))
+              .alias("price_change_zscore")
+        ])
+    else:
+        # Multiple symbols - use grouping
+        df_with_changes = df_clean.with_columns([
             (pl.col("price_usd").pct_change().over("symbol") * 100).alias("price_change_pct"),
             pl.col("price_usd").log().diff().over("symbol").alias("log_returns")
         ])
-        .with_columns([
-            pl.col("price_change_pct")
-              .rolling_std(window_size=period)
-              .over("symbol")
-              .alias("price_volatility_std"),
-            pl.col("log_returns")
-              .rolling_std(window_size=period)
-              .over("symbol")
-              .alias("log_returns_std"),
-            pl.col("price_change_pct")
-              .rolling_mean(window_size=period)
-              .over("symbol")
-              .alias("price_change_mean"),
-            ((pl.col("price_change_pct") - pl.col("price_change_pct").rolling_mean(window_size=period).over("symbol"))
-             / pl.col("price_change_pct").rolling_std(window_size=period).over("symbol"))
-             .alias("price_change_zscore")
+        
+        rolling_std = pl.col("price_change_pct").rolling_std(window_size=period).over("symbol")
+        rolling_mean = pl.col("price_change_pct").rolling_mean(window_size=period).over("symbol")
+        
+        df_with_rolling = df_with_changes.with_columns([
+            rolling_std.alias("price_volatility_std"),
+            pl.col("log_returns").rolling_std(window_size=period).over("symbol").alias("log_returns_std"),
+            rolling_mean.alias("price_change_mean"),
+            # Z-score calculation with division by zero protection
+            pl.when(rolling_std > 0)
+              .then((pl.col("price_change_pct") - rolling_mean) / rolling_std)
+              .otherwise(pl.lit(None))
+              .alias("price_change_zscore")
         ])
-        .with_columns([
-            pl.when(pl.col("price_volatility_std") > pl.col("price_volatility_std").quantile(0.75).over("symbol"))
-              .then(pl.lit("high"))
-              .when(pl.col("price_volatility_std") > pl.col("price_volatility_std").quantile(0.25).over("symbol"))
-              .then(pl.lit("medium"))
-              .otherwise(pl.lit("low"))
+    
+    # Calculate volatility category - handle cases with insufficient data for quantiles
+    # For single symbol, calculate quantiles without grouping
+    try:
+        if is_single_symbol:
+            # Single symbol: calculate quantiles directly without grouping
+            volatility_values = df_with_rolling.filter(pl.col("price_volatility_std").is_not_null())["price_volatility_std"]
+            if volatility_values.len() > 0:
+                q75 = volatility_values.quantile(0.75)
+                q25 = volatility_values.quantile(0.25)
+                result = df_with_rolling.with_columns([
+                    pl.when(pl.col("price_volatility_std").is_not_null())
+                      .then(
+                          pl.when(pl.col("price_volatility_std") > q75)
+                            .then(pl.lit("high"))
+                            .when(pl.col("price_volatility_std") > q25)
+                            .then(pl.lit("medium"))
+                            .otherwise(pl.lit("low"))
+                      )
+                      .otherwise(pl.lit(None))
+                      .alias("volatility_category"),
+                    pl.when(pl.col("price_change_zscore").is_not_null())
+                      .then(pl.col("price_change_zscore").abs() > 2.0)
+                      .otherwise(pl.lit(False))
+                      .alias("extreme_movement"),
+                    pl.lit(period).alias("ecart_type_period")
+                ])
+            else:
+                # No valid volatility data, use default
+                result = df_with_rolling.with_columns([
+                    pl.lit(None).alias("volatility_category"),
+                    pl.lit(False).alias("extreme_movement"),
+                    pl.lit(period).alias("ecart_type_period")
+                ])
+        else:
+            # Multiple symbols: use grouping
+            result = df_with_rolling.with_columns([
+                pl.when(pl.col("price_volatility_std").is_not_null())
+                  .then(
+                      pl.when(pl.col("price_volatility_std") > pl.col("price_volatility_std").quantile(0.75).over("symbol"))
+                        .then(pl.lit("high"))
+                        .when(pl.col("price_volatility_std") > pl.col("price_volatility_std").quantile(0.25).over("symbol"))
+                        .then(pl.lit("medium"))
+                        .otherwise(pl.lit("low"))
+                  )
+                  .otherwise(pl.lit(None))
+                  .alias("volatility_category"),
+                pl.when(pl.col("price_change_zscore").is_not_null())
+                  .then(pl.col("price_change_zscore").abs() > 2.0)
+                  .otherwise(pl.lit(False))
+                  .alias("extreme_movement"),
+                pl.lit(period).alias("ecart_type_period")
+            ])
+    except Exception:
+        # Fallback if quantile calculation fails (insufficient data)
+        result = df_with_rolling.with_columns([
+            pl.when(pl.col("price_volatility_std").is_not_null())
+              .then(pl.lit("medium"))  # Default category
+              .otherwise(pl.lit(None))
               .alias("volatility_category"),
-            (pl.col("price_change_zscore").abs() > 2.0).alias("extreme_movement"),
+            pl.when(pl.col("price_change_zscore").is_not_null())
+              .then(pl.col("price_change_zscore").abs() > 2.0)
+              .otherwise(pl.lit(False))
+              .alias("extreme_movement"),
             pl.lit(period).alias("ecart_type_period")
         ])
-    )
     
     return result
 

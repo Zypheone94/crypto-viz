@@ -496,20 +496,25 @@ def _compute_trending_symbols(limit: int, window_hours: int) -> Dict[str, Any]:
         prev_start = prev_end - timedelta(hours=window_hours)
 
         def format_ts(value: datetime) -> str:
-            return value.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+            # MySQL datetime format uses space, not T
+            return value.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
         def fetch_counts(start: datetime, end: datetime) -> Dict[str, int]:
             cursor = con.cursor()
+            # Use CAST to ensure proper datetime comparison
             cursor.execute(
                 """
                 SELECT symbol_upper, COUNT(*) as cnt
                 FROM (
-                    SELECT COALESCE(UPPER(symbol), 'UNKNOWN') as symbol_upper
+                    SELECT COALESCE(UPPER(TRIM(symbol)), 'UNKNOWN') as symbol_upper
                     FROM article
                     WHERE symbol IS NOT NULL
-                      AND fetched_at >= %s AND fetched_at < %s
+                      AND TRIM(symbol) != ''
+                      AND fetched_at >= CAST(%s AS DATETIME)
+                      AND fetched_at < CAST(%s AS DATETIME)
                 ) AS subquery
                 GROUP BY symbol_upper
+                HAVING cnt > 0
                 """,
                 (
                     format_ts(start),
@@ -522,15 +527,23 @@ def _compute_trending_symbols(limit: int, window_hours: int) -> Dict[str, Any]:
         prev_counts = fetch_counts(prev_start, prev_end)
 
         trending = []
-        for symbol, value in current_counts.items():
+        # Include symbols from both windows to catch new trends
+        all_symbols = set(current_counts.keys()) | set(prev_counts.keys())
+        
+        for symbol in all_symbols:
+            value = current_counts.get(symbol, 0)
             previous = prev_counts.get(symbol, 0)
+            
+            # Skip if both are zero
             if value == 0 and previous == 0:
                 continue
+                
             delta = value - previous
             if previous == 0:
                 delta_pct = 100.0 if value > 0 else 0.0
             else:
                 delta_pct = (delta / previous) * 100.0
+                
             trending.append({
                 "source": symbol,
                 "value": value,
@@ -539,6 +552,7 @@ def _compute_trending_symbols(limit: int, window_hours: int) -> Dict[str, Any]:
                 "delta_pct": delta_pct
             })
 
+        # Sort by absolute delta percentage (trending strength) and value
         trending.sort(key=lambda item: (abs(item["delta_pct"]), item["value"]), reverse=True)
         return {
             "trending": trending[:limit],
@@ -578,15 +592,16 @@ async def get_market_trending(
 
     try:
         data = _compute_trending_symbols(limit, window_map[window])
+        trending_list = data.get("trending", [])
         response_data = {
             "window": window,
             "baseline": "previous_window",
-            "trending": data.get("trending", []),
+            "trending": trending_list,
             "metadata": data.get("metadata", {})
         }
         return ApiResponse._create_response(
             level="info",
-            msg="Market trending data computed successfully",
+            msg=f"Market trending data computed successfully - found {len(trending_list)} trending items",
             response={
                 "status": 200,
                 "data": response_data

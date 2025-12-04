@@ -83,15 +83,18 @@ export class Home implements OnInit {
           return;
         }
 
-        const overviewData = dashboard.overview || {};
-        const statsData = dashboard.stats || {};
+        // Handle nested response structure: response.data or direct data
+        const dashboardData = dashboard.data || dashboard;
+
+        const overviewData = dashboardData.overview || {};
+        const statsData = dashboardData.stats || {};
 
         this.featureTags = this.buildFeatureTags(overviewData, statsData);
         this.statCards = this.buildStatCards(statsData);
-        this.dataTimestamp = overviewData.last_updated || statsData.last_updated || dashboard.metadata?.generated_at || '';
+        this.dataTimestamp = overviewData.last_updated || statsData.last_updated || dashboardData.metadata?.generated_at || '';
 
-        this.topGainers = this.mapMovements(dashboard.gainers);
-        this.topLosers = this.mapMovements(dashboard.losers);
+        this.topGainers = this.mapMovements(dashboardData.gainers || []);
+        this.topLosers = this.mapMovements(dashboardData.losers || []);
 
         if (!this.topGainers.length) {
           this.moversError = 'Aucun gainer disponible pour l\'instant.';

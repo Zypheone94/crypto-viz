@@ -501,7 +501,18 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
     this.apiService.getEcartType(symbol, params).subscribe({
       next: (response: any) => {
         console.log('✅ Écart-type API response:', response);
+        this.errorMessage = ''; // Clear any previous errors
+        
         const payload = response || {};
+        
+        // Check for warning/error messages in response
+        if (payload.msg && (payload.msg.includes('Insufficient') || payload.msg.includes('No data') || payload.msg.includes('No analysis'))) {
+          this.errorMessage = payload.msg;
+          this.ecartTypeData = [];
+          this.updateStats({ current: 0, average: 0, max: 0, min: 0 });
+          this.isLoading = false;
+          return;
+        }
         
         // Handle API response structure - check for time_series first (symbol-specific endpoint)
         if (payload.time_series && Array.isArray(payload.time_series)) {
@@ -585,12 +596,11 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
             };
             this.updateStats(stats);
           }
-        } else if (payload.data) {
-          // Mock data structure fallback
-          this.ecartTypeData = payload.data || [];
-          this.updateStats(payload.stats || {});
         } else {
+          // No valid data structure found
           console.warn('No valid data structure in API response:', response);
+          const msg = payload.msg || 'Aucune donnée disponible pour ce symbole';
+          this.errorMessage = msg;
           this.ecartTypeData = [];
           this.updateStats({ current: 0, average: 0, max: 0, min: 0 });
         }
@@ -600,16 +610,30 @@ export class EcartTypeGlissantComponent implements OnInit, OnDestroy, AfterViewI
       },
       error: (error) => {
         console.error('Error loading écart-type data:', error);
+        this.isLoading = false;
+        
+        // Extract error message from response
+        let errorMsg = 'Erreur lors du chargement des données';
+        if (error?.error?.response?.msg) {
+          errorMsg = error.error.response.msg;
+        } else if (error?.error?.msg) {
+          errorMsg = error.error.msg;
+        } else if (error?.error?.message) {
+          errorMsg = error.error.message;
+        } else if (error?.message) {
+          errorMsg = error.message;
+        } else if (typeof error === 'string') {
+          errorMsg = error;
+        }
+        
+        this.errorMessage = errorMsg;
         this.ecartTypeData = [];
         this.updateStats({ current: 0, average: 0, max: 0, min: 0 });
-        this.isLoading = false;
       }
     });
   }
 
   private loadDataForDateRange(startDate: Date, endDate: Date): void {
-    // For now, we'll load all data and filter client-side
-    // In a real implementation, you might want to pass date range to API
     this.loadData();
   }
 

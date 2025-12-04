@@ -48,7 +48,6 @@ async def get_ecart_type_analysis(
         FROM article
         WHERE price IS NOT NULL
           AND symbol IS NOT NULL
-          AND volume_24h IS NOT NULL
         '''
         params = []
         
@@ -80,11 +79,35 @@ async def get_ecart_type_analysis(
             )
             return JSONResponse(content=response, status_code=200)
         
-        # Ensure proper data types
-        df = df.with_columns([
-            pl.col("price_usd").cast(pl.Float64),
-            pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S.%f", time_zone="UTC")
-        ])
+        # Ensure proper data types - handle various datetime formats
+        try:
+            df = df.with_columns([
+                pl.col("price_usd").cast(pl.Float64, strict=False),
+            ])
+            
+            # Handle datetime parsing with multiple format attempts
+            if df["ts"].dtype == pl.String:
+                df = df.with_columns([
+                    pl.when(pl.col("ts").str.contains("T"))
+                      .then(
+                          pl.when(pl.col("ts").str.contains(r"\.\d+"))
+                            .then(pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S.%f", time_zone="UTC", strict=False))
+                            .otherwise(pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S", time_zone="UTC", strict=False))
+                      )
+                      .otherwise(
+                          pl.col("ts").str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC", strict=False)
+                      )
+                      .alias("ts")
+                ])
+            elif df["ts"].dtype != pl.Datetime:
+                df = df.with_columns([
+                    pl.col("ts").cast(pl.Datetime(time_zone="UTC"), strict=False).alias("ts")
+                ])
+        except Exception:
+            # Fallback to more lenient parsing
+            df = df.with_columns([
+                pl.col("ts").str.to_datetime(time_zone="UTC", strict=False).alias("ts")
+            ])
         
         # Calculate écart type analysis
         from .algo.ecart_Type import build_ecart_type
@@ -222,7 +245,6 @@ async def get_symbol_ecart_type_analysis(
         FROM article
         WHERE price IS NOT NULL
           AND symbol IS NOT NULL
-          AND volume_24h IS NOT NULL
           AND UPPER(symbol) = UPPER(%s)
         '''
         params = [symbol]
@@ -246,32 +268,98 @@ async def get_symbol_ecart_type_analysis(
             response = ApiResponse._create_response(
                 level="warning",
                 msg=f"No data found for symbol {symbol} in the specified date range",
-                response=[]
+                response={
+                    "symbol": symbol.upper(),
+                    "data_points": 0,
+                    "message": f"No price data available for {symbol}"
+                }
             )
-            return JSONResponse(content=response, status_code=404)
+            return JSONResponse(content=response, status_code=200)
         
         # Ensure proper data types - handle various datetime formats
-        df = df.with_columns([
-            pl.col("price_usd").cast(pl.Float64),
-            pl.when(pl.col("ts").str.contains("T"))
-              .then(pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S.%f", time_zone="UTC", strict=False))
-              .otherwise(pl.col("ts").str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC", strict=False))
-              .alias("ts")
-        ])
+        try:
+            df = df.with_columns([
+                pl.col("price_usd").cast(pl.Float64, strict=False),
+            ])
+            
+            # Handle datetime parsing with multiple format attempts
+            if df["ts"].dtype == pl.String:
+                df = df.with_columns([
+                    pl.when(pl.col("ts").str.contains("T"))
+                      .then(
+                          pl.when(pl.col("ts").str.contains(r"\.\d+"))
+                            .then(pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S.%f", time_zone="UTC", strict=False))
+                            .otherwise(pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S", time_zone="UTC", strict=False))
+                      )
+                      .otherwise(
+                          pl.col("ts").str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC", strict=False)
+                      )
+                      .alias("ts")
+                ])
+            elif df["ts"].dtype != pl.Datetime:
+                df = df.with_columns([
+                    pl.col("ts").cast(pl.Datetime(time_zone="UTC"), strict=False).alias("ts")
+                ])
+        except Exception:
+            # Fallback to more lenient parsing
+            df = df.with_columns([
+                pl.col("ts").str.to_datetime(time_zone="UTC", strict=False).alias("ts")
+            ])
         
         # Calculate écart type for this symbol
-        from .algo.ecart_Type import build_ecart_type
-        results_df = build_ecart_type(df, period=period)
+        try:
+            from .algo.ecart_Type import build_ecart_type
+            # Check if we have minimum required data points
+            if df.height < period:
+                response = ApiResponse._create_response(
+                    level="warning",
+                    msg=f"Insufficient data for symbol {symbol}. Need at least {period} data points, but only found {df.height}.",
+                    response={
+                        "symbol": symbol.upper(),
+                        "period": period,
+                        "data_points_available": df.height,
+                        "minimum_required": period,
+                        "time_series": [],
+                        "latest_stats": {}
+                    }
+                )
+                return JSONResponse(content=response, status_code=200)
+            
+            results_df = build_ecart_type(df, period=period)
+        except Exception as calc_error:
+            import traceback
+            error_details = traceback.format_exc()
+            # Return 200 with error info instead of 500, so frontend can display message
+            response = ApiResponse._create_response(
+                level="warning",
+                msg=f"Calculation issue for {symbol}: {str(calc_error)}",
+                response={
+                    "symbol": symbol.upper(),
+                    "error": str(calc_error),
+                    "data_points_available": df.height,
+                    "period": period,
+                    "time_series": [],
+                    "latest_stats": {}
+                }
+            )
+            return JSONResponse(content=response, status_code=200)
         
         if results_df.height == 0:
             response = ApiResponse._create_response(
                 level="warning",
                 msg=f"No analysis results for symbol {symbol}",
-                response=[]
+                response={
+                    "symbol": symbol.upper(),
+                    "period": period,
+                    "data_points_available": df.height,
+                    "time_series": [],
+                    "latest_stats": {}
+                }
             )
-            return JSONResponse(content=response, status_code=404)
+            return JSONResponse(content=response, status_code=200)
         
-        # Get time series data
+        # Get time series data - filter out null values but keep enough data points
+        # Rolling window calculations need at least 'period' data points to produce results
         time_series = (
             results_df
             .filter(pl.col("price_volatility_std").is_not_null())
@@ -283,36 +371,76 @@ async def get_symbol_ecart_type_analysis(
             .sort("ts")
         )
         
-        # Get latest stats
-        latest = results_df.tail(1).select([
-            "price_usd", "price_volatility_std", "volatility_category",
-            "extreme_movement", "price_change_zscore"
-        ]).to_dicts()[0] if results_df.height > 0 else {}
+        # If no valid volatility data, check if we have enough raw data points
+        if time_series.height == 0 and results_df.height > 0:
+            # Not enough data points for rolling window calculation
+            response = ApiResponse._create_response(
+                level="warning",
+                msg=f"Insufficient data for symbol {symbol}. Need at least {period} data points for {period}-period rolling window, but only found {results_df.height}.",
+                response={
+                    "symbol": symbol.upper(),
+                    "period": period,
+                    "data_points_available": results_df.height,
+                    "minimum_required": period,
+                    "time_series": []
+                }
+            )
+            return JSONResponse(content=response, status_code=200)
+        
+        # Get latest stats - handle potential errors
+        try:
+            latest = results_df.tail(1).select([
+                "price_usd", "price_volatility_std", "volatility_category",
+                "extreme_movement", "price_change_zscore"
+            ]).to_dicts()[0] if results_df.height > 0 else {}
+        except Exception:
+            # If we can't get latest stats, use empty dict
+            latest = {}
         
         # Convert datetime objects to strings
         from datetime import datetime
         
         def convert_datetime_to_string(obj):
-            if isinstance(obj, dict):
-                return {key: convert_datetime_to_string(value) for key, value in obj.items()}
-            elif isinstance(obj, list):
-                return [convert_datetime_to_string(item) for item in obj]
-            elif isinstance(obj, datetime):
-                return obj.isoformat()
-            else:
-                return obj
+            try:
+                if isinstance(obj, dict):
+                    return {key: convert_datetime_to_string(value) for key, value in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_datetime_to_string(item) for item in obj]
+                elif isinstance(obj, datetime):
+                    return obj.isoformat()
+                elif hasattr(obj, 'isoformat'):  # Handle polars datetime objects
+                    return obj.isoformat()
+                else:
+                    return obj
+            except Exception:
+                # If conversion fails, return string representation
+                return str(obj) if obj is not None else None
+        
+        # Safely get date range
+        try:
+            date_start = results_df["ts"].min().isoformat() if results_df.height > 0 else None
+            date_end = results_df["ts"].max().isoformat() if results_df.height > 0 else None
+        except Exception:
+            date_start = None
+            date_end = None
+        
+        # Safely convert time series to dicts
+        try:
+            time_series_dicts = time_series.to_dicts()
+        except Exception:
+            time_series_dicts = []
         
         results = {
             "success": True,
             "symbol": symbol.upper(),
             "period": period,
             "latest_stats": convert_datetime_to_string(latest),
-            "time_series": convert_datetime_to_string(time_series.to_dicts()),
+            "time_series": convert_datetime_to_string(time_series_dicts),
             "metadata": {
                 "total_points": results_df.height,
                 "date_range": {
-                    "start": results_df["ts"].min().isoformat() if results_df.height > 0 else None,
-                    "end": results_df["ts"].max().isoformat() if results_df.height > 0 else None
+                    "start": date_start,
+                    "end": date_end
                 },
                 "filters": {
                     "date_from": date_from,
