@@ -1,35 +1,25 @@
 ﻿<div class="switcher">
 
-  <button
-    class="tab"
-    [class.active]="view === 'timeseries'"
-    (click)="select('timeseries')">
-    <mat-icon>timeline</mat-icon>
-    Time Series
-  </button>
 
-  <button
-    class="tab"
-    [class.active]="view === 'trending'"
-    (click)="select('trending')">
+
+  <button class="tab" [class.active]="view === 'trending'" (click)="select('trending')">
     <mat-icon>trending_up</mat-icon>
     Trending Now
   </button>
 
-  <button
-    class="tab"
-    [class.active]="view === 'ecartTypeGlissant'"
-    (click)="select('ecartTypeGlissant')">
+  <button class="tab" [class.active]="view === 'ecartTypeGlissant'" (click)="select('ecartTypeGlissant')">
     <mat-icon>trending_down</mat-icon>
     Écart-type glissant
   </button>
 
-  <button
-    class="tab"
-    [class.active]="view === 'rsi'"
-    (click)="select('rsi')">
+  <button class="tab" [class.active]="view === 'rsi'" (click)="select('rsi')">
     <mat-icon>show_chart</mat-icon>
     RSI
+  </button>
+
+  <button class="tab" [class.active]="view === 'crossCorrelation'" (click)="select('crossCorrelation')">
+    <mat-icon>compare_arrows</mat-icon>
+    Corrélation croisée
   </button>
 
   <button
@@ -60,20 +50,12 @@
 
 <div class="panel">
 
-  <app-time-series
-    *ngIf="view === 'timeseries'">
-  </app-time-series>
 
-  <app-trending-now
-    *ngIf="view === 'trending'"
-    window="1h"
-    baseline="24h"
-    [limit]="5"
-    [autoRefreshSec]="60">
+
+  <app-trending-now *ngIf="view === 'trending'" window="1h" baseline="24h" [limit]="5" [autoRefreshSec]="60">
   </app-trending-now>
 
-  <app-ecart-type-glissant
-    *ngIf="view === 'ecartTypeGlissant'">
+  <app-ecart-type-glissant *ngIf="view === 'ecartTypeGlissant'">
   </app-ecart-type-glissant>
 
   <app-linear-regression-next-hour
@@ -83,6 +65,9 @@
   <app-rsi
     *ngIf="view === 'rsi'">
   </app-rsi>
+
+  <app-cross-correlation *ngIf="view === 'crossCorrelation'">
+  </app-cross-correlation>
 
   <app-moving-averages
     *ngIf="view === 'movingAverages'">

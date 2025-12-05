@@ -314,7 +314,8 @@ export class Correlation implements OnInit, AfterViewInit {
             intersect: false,
             callbacks: {
               label: (context) => {
-                return `${context.dataset.label}: ${context.parsed.y.toFixed(4)}`;
+                const value = context.parsed?.y;
+                return `${context.dataset.label}: ${value != null ? value.toFixed(4) : 'N/A'}`;
               },
               title: (tooltipItems) => {
                 if (tooltipItems.length > 0) {

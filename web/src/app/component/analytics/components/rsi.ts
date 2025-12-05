@@ -62,11 +62,14 @@ interface RsiData {
             <mat-form-field appearance="outline">
               <mat-label>Symbole</mat-label>
               <mat-select [(value)]="selectedSymbol" (selectionChange)="onSymbolChange()">
-                <mat-option value="BTC">Bitcoin (BTC)</mat-option>
-                <mat-option value="ETH">Ethereum (ETH)</mat-option>
-                <mat-option value="ADA">Cardano (ADA)</mat-option>
+                <mat-option *ngFor="let symbol of availableSymbols" [value]="symbol">
+                  {{ symbol }}
+                </mat-option>
               </mat-select>
             </mat-form-field>
+            <div class="symbol-info" *ngIf="availableSymbols.length > 0">
+              {{ availableSymbols.length }} symboles disponibles
+            </div>
           </div>
 
           <div class="chart-wrapper" *ngIf="componentState === 'ready' && !isLoading">
@@ -117,9 +120,12 @@ interface RsiData {
     }
 
     .rsi-card {
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-      min-height: 500px;
+      background: var(--glass-bg);
+      backdrop-filter: var(--backdrop-blur);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-card);
+      border: 1px solid var(--border-light);
+      min-height: 600px;
     }
 
     .chart-title {
@@ -131,11 +137,24 @@ interface RsiData {
     }
 
     .title-icon {
-      color: #2196F3;
+      color: var(--primary);
     }
 
     .chart-content {
-      padding: 1rem;
+      padding: var(--space-xl);
+    }
+
+    mat-card-header {
+      padding: var(--space-xl);
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    mat-card-title {
+      color: var(--text-primary) !important;
+    }
+
+    mat-card-subtitle {
+      color: var(--text-secondary) !important;
     }
 
     .controls-section {
@@ -152,12 +171,13 @@ interface RsiData {
     .stats-row {
       display: flex;
       justify-content: space-around;
-      margin-bottom: 1rem;
-      padding: 1rem;
-      background: #f8f9fa;
-      border-radius: 8px;
+      margin-bottom: var(--space-lg);
+      padding: var(--space-lg);
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-light);
       flex-wrap: wrap;
-      gap: 1rem;
+      gap: var(--space-lg);
     }
 
     .stat-item {
@@ -168,15 +188,18 @@ interface RsiData {
     }
 
     .stat-label {
-      font-size: 0.875rem;
-      color: #666;
-      margin-bottom: 0.25rem;
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 500;
+      margin-bottom: var(--space-xs);
     }
 
     .stat-value {
-      font-size: 1.25rem;
-      font-weight: 600;
-      color: #333;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-primary);
     }
 
     .stat-value.rsi-overbought {
@@ -205,13 +228,16 @@ interface RsiData {
 
     .chart-wrapper {
       position: relative;
-      height: 400px;
-      margin-top: 1rem;
+      min-height: 500px;
+      margin-top: var(--space-lg);
     }
 
     .chart-canvas {
-      max-height: 100%;
-      width: 100%;
+      height: 450px !important;
+      width: 100% !important;
+      background: var(--chart-bg);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
     }
 
     .loading-wrapper {
@@ -219,13 +245,14 @@ interface RsiData {
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 4rem 2rem;
+      min-height: 400px;
+      padding: var(--space-2xl);
       text-align: center;
+      gap: var(--space-lg);
     }
 
     .loading-wrapper p {
-      margin-top: 1rem;
-      color: #666;
+      color: var(--text-secondary);
     }
 
     .error-wrapper {
@@ -233,45 +260,51 @@ interface RsiData {
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 4rem 2rem;
+      min-height: 400px;
+      padding: var(--space-2xl);
       text-align: center;
+      gap: var(--space-md);
     }
 
     .error-icon {
       font-size: 4rem;
       width: 4rem;
       height: 4rem;
-      color: #f44336;
-      margin-bottom: 1rem;
+      color: var(--error);
     }
 
     .error-wrapper h3 {
-      color: #333;
-      margin: 0 0 1rem 0;
+      color: var(--text-primary);
+      margin: 0;
       font-size: 1.5rem;
     }
 
     .error-wrapper p {
-      color: #666;
-      margin: 0 0 2rem 0;
+      color: var(--text-secondary);
+      margin: 0;
       max-width: 300px;
     }
 
     .retry-button {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.75rem 1.5rem;
-      border: none;
-      border-radius: 6px;
-      background: #2196F3;
-      color: white;
+      gap: var(--space-sm);
+      padding: var(--space-md) var(--space-xl);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-md);
+      background: var(--primary);
+      color: var(--text-inverse);
+      font-weight: 600;
       cursor: pointer;
       font-size: 1rem;
+      transition: all var(--transition-fast);
+      box-shadow: var(--shadow-sm);
     }
 
     .retry-button:hover {
-      background: #1976D2;
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
     }
 
     @media (max-width: 768px) {
@@ -299,6 +332,7 @@ export class RsiComponent implements OnInit, OnDestroy, AfterViewInit {
   isLoading = false;
   errorMessage = '';
   selectedSymbol = 'BTC';
+  availableSymbols: string[] = [];
   
   private autoRefreshSubscription?: Subscription;
 
@@ -308,7 +342,7 @@ export class RsiComponent implements OnInit, OnDestroy, AfterViewInit {
 
   ngOnInit(): void {
     this.componentState = ComponentState.LOADING;
-    this.loadData();
+    this.loadAvailableSymbols();
     
     // Set up auto-refresh every 5 minutes
     this.autoRefreshSubscription = interval(300000).subscribe(() => {
@@ -331,6 +365,40 @@ export class RsiComponent implements OnInit, OnDestroy, AfterViewInit {
 
   onSymbolChange(): void {
     this.loadData();
+  }
+
+  private loadAvailableSymbols(): void {
+    this.apiService.getAvailableSymbols().subscribe({
+      next: (response: any) => {
+        console.log('Symbols API response:', response);
+        
+        // Extract symbols from response
+        if (Array.isArray(response)) {
+          this.availableSymbols = response;
+        } else if (response?.response && Array.isArray(response.response)) {
+          this.availableSymbols = response.response;
+        } else {
+          console.warn('Unexpected symbols response format:', response);
+          this.availableSymbols = ['BTC', 'ETH', 'ADA']; // Fallback
+        }
+        
+        // Set default symbol if not already set
+        if (this.availableSymbols.length > 0 && !this.selectedSymbol) {
+          this.selectedSymbol = this.availableSymbols[0];
+        }
+        
+        console.log(`Loaded ${this.availableSymbols.length} symbols for RSI`);
+        
+        // Now load data for the selected symbol
+        this.loadData();
+      },
+      error: (error) => {
+        console.error('Error loading symbols:', error);
+        // Fallback to common symbols
+        this.availableSymbols = ['BTC', 'ETH', 'ADA', 'SOL', 'BNB', 'XRP'];
+        this.loadData();
+      }
+    });
   }
 
   async loadData(): Promise<void> {

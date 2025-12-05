@@ -30,7 +30,7 @@
       Indicateurs clés
     </h2>
 
-    <ng-container *ngIf="statCards.length; else statsFallback">
+    <ng-container *ngIf="!isOverviewLoading && statCards.length; else statsLoadingOrEmpty">
       <div class="stats-grid">
         <mat-card class="stat-card" *ngFor="let metric of statCards" [style.border-left-color]="metric.accent">
           <mat-card-content>
@@ -38,7 +38,7 @@
               <div class="stat-icon" [style.background]="metric.iconBg">
                 <mat-icon>{{ metric.icon }}</mat-icon>
               </div>
-              <span class="stat-trend" [class.positive]="(metric.trendValue ?? 0) > 0" [class.negative]="(metric.trendValue ?? 0) < 0">{{ metric.trend }}</span>
+              <span class="stat-trend" *ngIf="metric.trend" [class.positive]="(metric.trendValue ?? 0) > 0" [class.negative]="(metric.trendValue ?? 0) < 0">{{ metric.trend }}</span>
             </div>
             <div class="stat-main">
               <p class="stat-value">{{ metric.value }}</p>
@@ -49,9 +49,17 @@
         </mat-card>
       </div>
     </ng-container>
-    <ng-template #statsFallback>
-      <div class="empty-state">
-        {{ overviewError || "Impossible d'afficher les indicateurs pour le moment." }}
+    <ng-template #statsLoadingOrEmpty>
+      <div class="empty-state" *ngIf="!isOverviewLoading">
+        <mat-icon>info</mat-icon>
+        <p>{{ overviewError || "Aucune donnée disponible pour le moment." }}</p>
+        <button mat-stroked-button (click)="loadHomeData()">
+          <mat-icon>refresh</mat-icon>
+          Réessayer
+        </button>
+      </div>
+      <div class="loading-skeleton" *ngIf="isOverviewLoading">
+        <div class="skeleton-card" *ngFor="let i of [1,2,3,4]"></div>
       </div>
     </ng-template>
   </section>

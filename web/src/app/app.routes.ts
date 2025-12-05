@@ -2,16 +2,16 @@ import { Routes } from '@angular/router';
 import { Home } from './component/home/home';
 import { Analytics } from './component/analytics/analytics';
 import { HealthCheck } from './component/health-check/health-check';
-import { NewsComponent } from './component/news/news';
 import { MainLayoutComponent } from './layout/main-layout/main-layout';
 import { Correlation } from './component/correlation/correlation';
+import { NewsComponent } from './component/news/news';
 
 export const routes: Routes = [
   {
     path: '',
     component: MainLayoutComponent,
     children: [
-      { path: '', redirectTo: 'home', pathMatch: 'full' }, // Redirection par défaut
+      { path: '', redirectTo: 'home', pathMatch: 'full' },
       { path: 'home', component: Home, title: 'Home' },
       { path: 'analytics', component: Analytics, title: 'Analytics' },
       { path: 'health-check', component: HealthCheck, title: 'Health Check' },
@@ -19,5 +19,5 @@ export const routes: Routes = [
       { path: 'correlation', component: Correlation, title: 'Correlation' },
     ],
   },
-  { path: '**', redirectTo: '', pathMatch: 'full' }, // Redirection vers la racine
+  { path: '**', redirectTo: '', pathMatch: 'full' },
 ];

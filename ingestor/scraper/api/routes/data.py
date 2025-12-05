@@ -1,12 +1,10 @@
 import sys
-import sqlite3
 from pathlib import Path as PathLib
 
 from fastapi import APIRouter, Query, Path
 from fastapi.responses import JSONResponse
 from api.utils.json_api_res_template import JsonApiTemplate
-
-# Add builder module to path for other imports if needed
+from api.utils.mysql_client import execute_query_polars
 builder_path = PathLib(__file__).parent.parent.parent.parent / "builder"
 sys.path.append(str(builder_path))
 
@@ -36,18 +34,6 @@ async def get_ecart_type_analysis(
     - date_from/date_to: Filter by date range (optional)
     """
     try:
-        # Use container database path
-        db_path = PathLib("/app/ingestor/scraper/component/scraperdb/data/ingestor.db")
-        
-        # Check if database exists
-        if not db_path.exists():
-            response = ApiResponse._create_response(
-                level="error",
-                msg=f"Database not found at {db_path}",
-                response=[]
-            )
-            return JSONResponse(content=response, status_code=500)
-        
         # Load data with filters
         import polars as pl
         
@@ -67,24 +53,23 @@ async def get_ecart_type_analysis(
         
         # Add symbol filter
         if symbol:
-            query += " AND UPPER(symbol) = UPPER(?)"
+            query += " AND UPPER(symbol) = UPPER(%s)"
             params.append(symbol)
         
         # Add date range filters
         if date_from:
-            query += " AND DATE(fetched_at) >= ?"
+            query += " AND DATE(fetched_at) >= %s"
             params.append(date_from)
         
         if date_to:
-            query += " AND DATE(fetched_at) <= ?"
+            query += " AND DATE(fetched_at) <= %s"
             params.append(date_to)
         
-        query += " ORDER BY symbol, fetched_at LIMIT ?"
+        query += " ORDER BY symbol, fetched_at LIMIT %s"
         params.append(limit)
         
-        # Load filtered data
-        with sqlite3.connect(str(db_path)) as con:
-            df = pl.read_database(query, con, execute_options={"parameters": params})
+        # Load filtered data using MySQL
+        df = execute_query_polars(query, params)
         
         if df.height == 0:
             response = ApiResponse._create_response(
@@ -94,11 +79,35 @@ async def get_ecart_type_analysis(
             )
             return JSONResponse(content=response, status_code=200)
         
-        # Ensure proper data types
-        df = df.with_columns([
-            pl.col("price_usd").cast(pl.Float64),
-            pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S.%f", time_zone="UTC")
-        ])
+        # Ensure proper data types - handle various datetime formats
+        try:
+            df = df.with_columns([
+                pl.col("price_usd").cast(pl.Float64, strict=False),
+            ])
+            
+            # Handle datetime parsing with multiple format attempts
+            if df["ts"].dtype == pl.String:
+                df = df.with_columns([
+                    pl.when(pl.col("ts").str.contains("T"))
+                      .then(
+                          pl.when(pl.col("ts").str.contains(r"\.\d+"))
+                            .then(pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S.%f", time_zone="UTC", strict=False))
+                            .otherwise(pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S", time_zone="UTC", strict=False))
+                      )
+                      .otherwise(
+                          pl.col("ts").str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC", strict=False)
+                      )
+                      .alias("ts")
+                ])
+            elif df["ts"].dtype != pl.Datetime:
+                df = df.with_columns([
+                    pl.col("ts").cast(pl.Datetime(time_zone="UTC"), strict=False).alias("ts")
+                ])
+        except Exception:
+            # Fallback to more lenient parsing
+            df = df.with_columns([
+                pl.col("ts").str.to_datetime(time_zone="UTC", strict=False).alias("ts")
+            ])
         
         # Calculate écart type analysis
         from .algo.ecart_Type import build_ecart_type
@@ -223,9 +232,6 @@ async def get_symbol_ecart_type_analysis(
     Supports date range filtering.
     """
     try:
-        # Use container database path
-        db_path = PathLib("/app/ingestor/scraper/component/scraperdb/data/ingestor.db")
-        
         # Load data with symbol and date filters
         import polars as pl
         
@@ -239,53 +245,121 @@ async def get_symbol_ecart_type_analysis(
         FROM article
         WHERE price IS NOT NULL
           AND symbol IS NOT NULL
-          AND UPPER(symbol) = UPPER(?)
+          AND UPPER(symbol) = UPPER(%s)
         '''
         params = [symbol]
         
         # Add date range filters
         if date_from:
-            query += " AND DATE(fetched_at) >= ?"
+            query += " AND DATE(fetched_at) >= %s"
             params.append(date_from)
         
         if date_to:
-            query += " AND DATE(fetched_at) <= ?"
+            query += " AND DATE(fetched_at) <= %s"
             params.append(date_to)
         
-        query += " ORDER BY fetched_at LIMIT ?"
+        query += " ORDER BY fetched_at LIMIT %s"
         params.append(limit)
         
-        # Load filtered data
-        with sqlite3.connect(str(db_path)) as con:
-            df = pl.read_database(query, con, execute_options={"parameters": params})
+        # Load filtered data using MySQL
+        df = execute_query_polars(query, params)
         
         if df.height == 0:
             response = ApiResponse._create_response(
                 level="warning",
                 msg=f"No data found for symbol {symbol} in the specified date range",
-                response=[]
+                response={
+                    "symbol": symbol.upper(),
+                    "data_points": 0,
+                    "message": f"No price data available for {symbol}"
+                }
             )
-            return JSONResponse(content=response, status_code=404)
+            return JSONResponse(content=response, status_code=200)
         
-        # Ensure proper data types
-        df = df.with_columns([
-            pl.col("price_usd").cast(pl.Float64),
-            pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S.%f", time_zone="UTC")
-        ])
+        # Ensure proper data types - handle various datetime formats
+        try:
+            df = df.with_columns([
+                pl.col("price_usd").cast(pl.Float64, strict=False),
+            ])
+            
+            # Handle datetime parsing with multiple format attempts
+            if df["ts"].dtype == pl.String:
+                df = df.with_columns([
+                    pl.when(pl.col("ts").str.contains("T"))
+                      .then(
+                          pl.when(pl.col("ts").str.contains(r"\.\d+"))
+                            .then(pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S.%f", time_zone="UTC", strict=False))
+                            .otherwise(pl.col("ts").str.to_datetime(format="%Y-%m-%dT%H:%M:%S", time_zone="UTC", strict=False))
+                      )
+                      .otherwise(
+                          pl.col("ts").str.to_datetime(format="%Y-%m-%d %H:%M:%S", time_zone="UTC", strict=False)
+                      )
+                      .alias("ts")
+                ])
+            elif df["ts"].dtype != pl.Datetime:
+                df = df.with_columns([
+                    pl.col("ts").cast(pl.Datetime(time_zone="UTC"), strict=False).alias("ts")
+                ])
+        except Exception:
+            # Fallback to more lenient parsing
+            df = df.with_columns([
+                pl.col("ts").str.to_datetime(time_zone="UTC", strict=False).alias("ts")
+            ])
         
         # Calculate écart type for this symbol
-        from .algo.ecart_Type import build_ecart_type
-        results_df = build_ecart_type(df, period=period)
+        try:
+            from .algo.ecart_Type import build_ecart_type
+            # Check if we have minimum required data points
+            if df.height < period:
+                response = ApiResponse._create_response(
+                    level="warning",
+                    msg=f"Insufficient data for symbol {symbol}. Need at least {period} data points, but only found {df.height}.",
+                    response={
+                        "symbol": symbol.upper(),
+                        "period": period,
+                        "data_points_available": df.height,
+                        "minimum_required": period,
+                        "time_series": [],
+                        "latest_stats": {}
+                    }
+                )
+                return JSONResponse(content=response, status_code=200)
+            
+            results_df = build_ecart_type(df, period=period)
+        except Exception as calc_error:
+            import traceback
+            error_details = traceback.format_exc()
+            # Return 200 with error info instead of 500, so frontend can display message
+            response = ApiResponse._create_response(
+                level="warning",
+                msg=f"Calculation issue for {symbol}: {str(calc_error)}",
+                response={
+                    "symbol": symbol.upper(),
+                    "error": str(calc_error),
+                    "data_points_available": df.height,
+                    "period": period,
+                    "time_series": [],
+                    "latest_stats": {}
+                }
+            )
+            return JSONResponse(content=response, status_code=200)
         
         if results_df.height == 0:
             response = ApiResponse._create_response(
                 level="warning",
                 msg=f"No analysis results for symbol {symbol}",
-                response=[]
+                response={
+                    "symbol": symbol.upper(),
+                    "period": period,
+                    "data_points_available": df.height,
+                    "time_series": [],
+                    "latest_stats": {}
+                }
             )
-            return JSONResponse(content=response, status_code=404)
+            return JSONResponse(content=response, status_code=200)
         
-        # Get time series data
+        # Get time series data - filter out null values but keep enough data points
+        # Rolling window calculations need at least 'period' data points to produce results
         time_series = (
             results_df
             .filter(pl.col("price_volatility_std").is_not_null())
@@ -297,36 +371,76 @@ async def get_symbol_ecart_type_analysis(
             .sort("ts")
         )
         
-        # Get latest stats
-        latest = results_df.tail(1).select([
-            "price_usd", "price_volatility_std", "volatility_category",
-            "extreme_movement", "price_change_zscore"
-        ]).to_dicts()[0] if results_df.height > 0 else {}
+        # If no valid volatility data, check if we have enough raw data points
+        if time_series.height == 0 and results_df.height > 0:
+            # Not enough data points for rolling window calculation
+            response = ApiResponse._create_response(
+                level="warning",
+                msg=f"Insufficient data for symbol {symbol}. Need at least {period} data points for {period}-period rolling window, but only found {results_df.height}.",
+                response={
+                    "symbol": symbol.upper(),
+                    "period": period,
+                    "data_points_available": results_df.height,
+                    "minimum_required": period,
+                    "time_series": []
+                }
+            )
+            return JSONResponse(content=response, status_code=200)
+        
+        # Get latest stats - handle potential errors
+        try:
+            latest = results_df.tail(1).select([
+                "price_usd", "price_volatility_std", "volatility_category",
+                "extreme_movement", "price_change_zscore"
+            ]).to_dicts()[0] if results_df.height > 0 else {}
+        except Exception:
+            # If we can't get latest stats, use empty dict
+            latest = {}
         
         # Convert datetime objects to strings
         from datetime import datetime
         
         def convert_datetime_to_string(obj):
-            if isinstance(obj, dict):
-                return {key: convert_datetime_to_string(value) for key, value in obj.items()}
-            elif isinstance(obj, list):
-                return [convert_datetime_to_string(item) for item in obj]
-            elif isinstance(obj, datetime):
-                return obj.isoformat()
-            else:
-                return obj
+            try:
+                if isinstance(obj, dict):
+                    return {key: convert_datetime_to_string(value) for key, value in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_datetime_to_string(item) for item in obj]
+                elif isinstance(obj, datetime):
+                    return obj.isoformat()
+                elif hasattr(obj, 'isoformat'):  # Handle polars datetime objects
+                    return obj.isoformat()
+                else:
+                    return obj
+            except Exception:
+                # If conversion fails, return string representation
+                return str(obj) if obj is not None else None
+        
+        # Safely get date range
+        try:
+            date_start = results_df["ts"].min().isoformat() if results_df.height > 0 else None
+            date_end = results_df["ts"].max().isoformat() if results_df.height > 0 else None
+        except Exception:
+            date_start = None
+            date_end = None
+        
+        # Safely convert time series to dicts
+        try:
+            time_series_dicts = time_series.to_dicts()
+        except Exception:
+            time_series_dicts = []
         
         results = {
             "success": True,
             "symbol": symbol.upper(),
             "period": period,
             "latest_stats": convert_datetime_to_string(latest),
-            "time_series": convert_datetime_to_string(time_series.to_dicts()),
+            "time_series": convert_datetime_to_string(time_series_dicts),
             "metadata": {
                 "total_points": results_df.height,
                 "date_range": {
-                    "start": results_df["ts"].min().isoformat() if results_df.height > 0 else None,
-                    "end": results_df["ts"].max().isoformat() if results_df.height > 0 else None
+                    "start": date_start,
+                    "end": date_end
                 },
                 "filters": {
                     "date_from": date_from,
@@ -442,21 +556,8 @@ async def get_rsi_analysis(
     - Momentum strength indicators
     """
     try:
-        # Use container database path
-        db_path = PathLib("/app/ingestor/scraper/component/scraperdb/data/ingestor.db")
-        
-        # Check if database exists
-        if not db_path.exists():
-            response = ApiResponse._create_response(
-                level="error",
-                msg=f"Database not found at {db_path}",
-                response=[]
-            )
-            return JSONResponse(content=response, status_code=500)
-        
         # Load and filter data
         import polars as pl
-        import sqlite3
         
         query_conditions = []
         query_params = []
@@ -471,25 +572,25 @@ async def get_rsi_analysis(
         FROM article
         WHERE price IS NOT NULL
           AND symbol IS NOT NULL
+          AND volume_24h IS NOT NULL
         '''
         
         if symbol:
-            query_conditions.append("AND UPPER(symbol) = ?")
-            query_params.append(symbol.upper())
+            query_conditions.append("AND UPPER(symbol) = UPPER(%s)")
+            query_params.append(symbol)
         
         if date_from:
-            query_conditions.append("AND DATE(fetched_at) >= ?")
+            query_conditions.append("AND DATE(fetched_at) >= %s")
             query_params.append(date_from)
         
         if date_to:
-            query_conditions.append("AND DATE(fetched_at) <= ?")
+            query_conditions.append("AND DATE(fetched_at) <= %s")
             query_params.append(date_to)
         
-        final_query = base_query + " " + " ".join(query_conditions) + " ORDER BY symbol, fetched_at LIMIT ?"
+        final_query = base_query + " " + " ".join(query_conditions) + " ORDER BY symbol, fetched_at LIMIT %s"
         query_params.append(limit)
         
-        with sqlite3.connect(str(db_path)) as con:
-            df = pl.read_database(final_query, con, execute_options={"parameters": query_params})
+        df = execute_query_polars(final_query, query_params)
         
         if df.height == 0:
             response = ApiResponse._create_response(
@@ -601,22 +702,10 @@ async def get_symbol_rsi_analysis(
     - Time series data for charting
     """
     try:
-        # Use container database path
-        db_path = PathLib("/app/ingestor/scraper/component/scraperdb/data/ingestor.db")
-        
-        if not db_path.exists():
-            response = ApiResponse._create_response(
-                level="error",
-                msg=f"Database not found at {db_path}",
-                response=[]
-            )
-            return JSONResponse(content=response, status_code=500)
-        
         # Load and filter data for specific symbol
         import polars as pl
-        import sqlite3
         
-        query_conditions = ["AND UPPER(symbol) = ?"]
+        query_conditions = ["AND UPPER(symbol) = %s"]
         query_params = [symbol.upper()]
         
         base_query = '''
@@ -629,21 +718,21 @@ async def get_symbol_rsi_analysis(
         FROM article
         WHERE price IS NOT NULL
           AND symbol IS NOT NULL
+          AND volume_24h IS NOT NULL
         '''
         
         if date_from:
-            query_conditions.append("AND DATE(fetched_at) >= ?")
+            query_conditions.append("AND DATE(fetched_at) >= %s")
             query_params.append(date_from)
         
         if date_to:
-            query_conditions.append("AND DATE(fetched_at) <= ?")
+            query_conditions.append("AND DATE(fetched_at) <= %s")
             query_params.append(date_to)
         
-        final_query = base_query + " " + " ".join(query_conditions) + " ORDER BY fetched_at LIMIT ?"
+        final_query = base_query + " " + " ".join(query_conditions) + " ORDER BY fetched_at LIMIT %s"
         query_params.append(limit)
         
-        with sqlite3.connect(str(db_path)) as con:
-            df = pl.read_database(final_query, con, execute_options={"parameters": query_params})
+        df = execute_query_polars(final_query, query_params)
         
         if df.height == 0:
             response = ApiResponse._create_response(
@@ -851,5 +940,102 @@ async def get_news_articles(
             level="error",
             msg=f"Failed to retrieve news articles: {str(e)}",
             response={"error_details": error_details.split('\n')[-3:-1]}
+        )
+        return JSONResponse(content=response, status_code=500)
+
+
+@router.get("/cross-correlation")
+async def get_cross_correlation(
+    symbol: str = Query(None, description="Cryptocurrency symbol (e.g., BTC, ETH). If not provided, analyzes top symbols."),
+    max_lag: int = Query(12, ge=1, le=50, description="Maximum lag periods to analyze"),
+    limit: int = Query(10, ge=1, le=50, description="Number of symbols to analyze if no specific symbol provided")
+):
+    """
+    Calculate cross-correlation between volume and price.
+    
+    This endpoint analyzes the relationship between trading volume and price changes
+    to identify if volume can predict price movements (or vice versa).
+    
+    Returns:
+    - correlations: Dictionary of lag -> correlation value
+    - optimal_lag: The lag with strongest correlation
+    - interpretation: Human-readable explanation of the result
+    """
+    try:
+        # Import the analysis module
+        scraperdb_path = PathLib(__file__).parent.parent.parent / "component" / "scraperdb"
+        sys.path.insert(0, str(scraperdb_path))
+        
+        from corre_croisee import analyze_symbol, analyze_multiple_symbols
+        
+        if symbol:
+            # Analyze specific symbol
+            result = analyze_symbol(symbol.upper(), max_lag=max_lag)
+            
+            if "error" in result:
+                response = ApiResponse._create_response(
+                    level="warning",
+                    msg=result["error"],
+                    response=result
+                )
+                return JSONResponse(content=response, status_code=200)
+            
+            response = ApiResponse._create_response(
+                level="info",
+                msg=f"Cross-correlation analysis for {symbol.upper()}",
+                response=result
+            )
+        else:
+            # Analyze multiple symbols
+            results = analyze_multiple_symbols(max_lag=max_lag)[:limit]
+            
+            response = ApiResponse._create_response(
+                level="info",
+                msg=f"Cross-correlation analysis for {len(results)} symbols",
+                response={"symbols": results}
+            )
+        
+        return JSONResponse(content=response, status_code=200)
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        response = ApiResponse._create_response(
+            level="error",
+            msg=f"Cross-correlation analysis failed: {str(e)}",
+            response={"error_details": error_details.split('\n')[-3:-1]}
+        )
+        return JSONResponse(content=response, status_code=500)
+
+
+@router.get("/cross-correlation/symbols")
+async def get_available_symbols_endpoint():
+    """
+    Get list of available symbols for cross-correlation analysis.
+    Uses MySQL database (crypto_viz).
+    """
+    try:
+        # Import the analysis module
+        scraperdb_path = PathLib(__file__).parent.parent.parent / "component" / "scraperdb"
+        sys.path.insert(0, str(scraperdb_path))
+        
+        from corre_croisee import get_available_symbols
+        
+        symbols = get_available_symbols()
+        
+        response = ApiResponse._create_response(
+            level="info",
+            msg=f"Found {len(symbols)} symbols with sufficient data",
+            response={"symbols": symbols}
+        )
+        return JSONResponse(content=response, status_code=200)
+        
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        response = ApiResponse._create_response(
+            level="error",
+            msg=f"Failed to fetch symbols: {str(e)}",
+            response={"error_details": error_details.split('\\n')[-3:-1]}
         )
         return JSONResponse(content=response, status_code=500)

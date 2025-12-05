@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import mysql.connector
+import os
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
@@ -45,10 +46,10 @@ async def get_symbols():
     """
     try:
         con = mysql.connector.connect(
-            host="host.docker.internal",
-            user="ingestor_user",
-            password="password123",
-            database="ingestor"
+            host=os.getenv("MYSQL_HOST", "host.docker.internal"),
+            user=os.getenv("MYSQL_USER", "root"),
+            password=os.getenv("MYSQL_PASSWORD", ""),
+            database=os.getenv("MYSQL_DATABASE", "ingestor")
         )
         
         cursor = con.cursor()

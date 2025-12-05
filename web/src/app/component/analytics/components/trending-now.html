@@ -47,7 +47,7 @@
             <td><strong>{{ it.source }}</strong></td>
             <td>{{ it.value | number:'1.0-0' }}</td>
             <td [ngClass]="trendClass(it)">
-              {{ (it.delta_pct ?? 0) | number:'1.2-2' }}%
+              {{ it.delta_pct | number:'1.2-2' }}%
             </td>
             <td [ngClass]="trendClass(it)">
               {{ (it.delta ?? (it.value - (it.previous ?? 0))) | number:'1.0-0' }}

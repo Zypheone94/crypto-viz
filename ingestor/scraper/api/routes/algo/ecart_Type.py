@@ -1,6 +1,11 @@
 import polars as pl
 import sqlite3
+import sys
 from pathlib import Path
+
+# Import MySQL client utilities
+sys.path.append(str(Path(__file__).parent.parent / "utils"))
+from mysql_client import load_symbol_data
 
 
 def build_ecart_type(df: pl.DataFrame, period: int = 14) -> pl.DataFrame:
@@ -33,82 +38,133 @@ def build_ecart_type(df: pl.DataFrame, period: int = 14) -> pl.DataFrame:
           .sort(["symbol", "ts"])
     )
     
-    result = (
-        df_clean
-        .with_columns([
+    # Check if we have a single symbol (common case for symbol-specific queries)
+    unique_symbols = df_clean["symbol"].n_unique() if "symbol" in df_clean.columns else 1
+    is_single_symbol = unique_symbols == 1
+    
+    # Calculate price changes and log returns
+    # Use .over("symbol") only if multiple symbols, otherwise calculate directly
+    if is_single_symbol:
+        df_with_changes = df_clean.with_columns([
+            (pl.col("price_usd").pct_change() * 100).alias("price_change_pct"),
+            pl.col("price_usd").log().diff().alias("log_returns")
+        ])
+        
+        # Calculate rolling statistics without grouping for single symbol
+        rolling_std = pl.col("price_change_pct").rolling_std(window_size=period)
+        rolling_mean = pl.col("price_change_pct").rolling_mean(window_size=period)
+        
+        df_with_rolling = df_with_changes.with_columns([
+            rolling_std.alias("price_volatility_std"),
+            pl.col("log_returns").rolling_std(window_size=period).alias("log_returns_std"),
+            rolling_mean.alias("price_change_mean"),
+            # Z-score calculation with division by zero protection
+            pl.when(rolling_std > 0)
+              .then((pl.col("price_change_pct") - rolling_mean) / rolling_std)
+              .otherwise(pl.lit(None))
+              .alias("price_change_zscore")
+        ])
+    else:
+        # Multiple symbols - use grouping
+        df_with_changes = df_clean.with_columns([
             (pl.col("price_usd").pct_change().over("symbol") * 100).alias("price_change_pct"),
             pl.col("price_usd").log().diff().over("symbol").alias("log_returns")
         ])
-        .with_columns([
-            pl.col("price_change_pct")
-              .rolling_std(window_size=period)
-              .over("symbol")
-              .alias("price_volatility_std"),
-            pl.col("log_returns")
-              .rolling_std(window_size=period)
-              .over("symbol")
-              .alias("log_returns_std"),
-            pl.col("price_change_pct")
-              .rolling_mean(window_size=period)
-              .over("symbol")
-              .alias("price_change_mean"),
-            ((pl.col("price_change_pct") - pl.col("price_change_pct").rolling_mean(window_size=period).over("symbol"))
-             / pl.col("price_change_pct").rolling_std(window_size=period).over("symbol"))
-             .alias("price_change_zscore")
+        
+        rolling_std = pl.col("price_change_pct").rolling_std(window_size=period).over("symbol")
+        rolling_mean = pl.col("price_change_pct").rolling_mean(window_size=period).over("symbol")
+        
+        df_with_rolling = df_with_changes.with_columns([
+            rolling_std.alias("price_volatility_std"),
+            pl.col("log_returns").rolling_std(window_size=period).over("symbol").alias("log_returns_std"),
+            rolling_mean.alias("price_change_mean"),
+            # Z-score calculation with division by zero protection
+            pl.when(rolling_std > 0)
+              .then((pl.col("price_change_pct") - rolling_mean) / rolling_std)
+              .otherwise(pl.lit(None))
+              .alias("price_change_zscore")
         ])
-        .with_columns([
-            pl.when(pl.col("price_volatility_std") > pl.col("price_volatility_std").quantile(0.75).over("symbol"))
-              .then(pl.lit("high"))
-              .when(pl.col("price_volatility_std") > pl.col("price_volatility_std").quantile(0.25).over("symbol"))
-              .then(pl.lit("medium"))
-              .otherwise(pl.lit("low"))
+    
+    # Calculate volatility category - handle cases with insufficient data for quantiles
+    # For single symbol, calculate quantiles without grouping
+    try:
+        if is_single_symbol:
+            # Single symbol: calculate quantiles directly without grouping
+            volatility_values = df_with_rolling.filter(pl.col("price_volatility_std").is_not_null())["price_volatility_std"]
+            if volatility_values.len() > 0:
+                q75 = volatility_values.quantile(0.75)
+                q25 = volatility_values.quantile(0.25)
+                result = df_with_rolling.with_columns([
+                    pl.when(pl.col("price_volatility_std").is_not_null())
+                      .then(
+                          pl.when(pl.col("price_volatility_std") > q75)
+                            .then(pl.lit("high"))
+                            .when(pl.col("price_volatility_std") > q25)
+                            .then(pl.lit("medium"))
+                            .otherwise(pl.lit("low"))
+                      )
+                      .otherwise(pl.lit(None))
+                      .alias("volatility_category"),
+                    pl.when(pl.col("price_change_zscore").is_not_null())
+                      .then(pl.col("price_change_zscore").abs() > 2.0)
+                      .otherwise(pl.lit(False))
+                      .alias("extreme_movement"),
+                    pl.lit(period).alias("ecart_type_period")
+                ])
+            else:
+                # No valid volatility data, use default
+                result = df_with_rolling.with_columns([
+                    pl.lit(None).alias("volatility_category"),
+                    pl.lit(False).alias("extreme_movement"),
+                    pl.lit(period).alias("ecart_type_period")
+                ])
+        else:
+            # Multiple symbols: use grouping
+            result = df_with_rolling.with_columns([
+                pl.when(pl.col("price_volatility_std").is_not_null())
+                  .then(
+                      pl.when(pl.col("price_volatility_std") > pl.col("price_volatility_std").quantile(0.75).over("symbol"))
+                        .then(pl.lit("high"))
+                        .when(pl.col("price_volatility_std") > pl.col("price_volatility_std").quantile(0.25).over("symbol"))
+                        .then(pl.lit("medium"))
+                        .otherwise(pl.lit("low"))
+                  )
+                  .otherwise(pl.lit(None))
+                  .alias("volatility_category"),
+                pl.when(pl.col("price_change_zscore").is_not_null())
+                  .then(pl.col("price_change_zscore").abs() > 2.0)
+                  .otherwise(pl.lit(False))
+                  .alias("extreme_movement"),
+                pl.lit(period).alias("ecart_type_period")
+            ])
+    except Exception:
+        # Fallback if quantile calculation fails (insufficient data)
+        result = df_with_rolling.with_columns([
+            pl.when(pl.col("price_volatility_std").is_not_null())
+              .then(pl.lit("medium"))  # Default category
+              .otherwise(pl.lit(None))
               .alias("volatility_category"),
-            (pl.col("price_change_zscore").abs() > 2.0).alias("extreme_movement"),
+            pl.when(pl.col("price_change_zscore").is_not_null())
+              .then(pl.col("price_change_zscore").abs() > 2.0)
+              .otherwise(pl.lit(False))
+              .alias("extreme_movement"),
             pl.lit(period).alias("ecart_type_period")
         ])
-    )
     
     return result
 
 
 def load_data_from_db(db_path: str | Path = None, limit: int = 1000) -> pl.DataFrame:
-    if db_path is None:
-        db_path = Path(__file__).parent.parent / "scraper/component/scraperdb/data/ingestor.db"
-    db_path = Path(db_path)
-
-    if not db_path.exists():
-        raise FileNotFoundError(f"SQLite DB not found at {db_path}")
-
-    query = '''
-    SELECT
-        symbol,
-        price as price_usd,
-        fetched_at as ts,
-        name as title,
-        url as source
-    FROM article
-    WHERE price IS NOT NULL
-      AND symbol IS NOT NULL
-    ORDER BY symbol, fetched_at
-    LIMIT ?
-    '''
-
+    """
+    Load cryptocurrency data from MySQL database for écart-type analysis.
+    Note: db_path parameter is kept for compatibility but not used with MySQL.
+    """
     try:
-        with sqlite3.connect(str(db_path)) as con:
-            df = pl.read_database(query, con, execute_options={"parameters": [limit]})
-
-        if df.height == 0:
-            return df
-
-        df = df.with_columns([
-            pl.col("price_usd").cast(pl.Float64),
-            pl.col("ts").str.to_datetime(time_zone="UTC")  # ISO format auto-detection
-        ])
-
+        # Use the MySQL client to load data
+        df = load_symbol_data(symbol=None, limit=limit)
         return df
-
-    except sqlite3.OperationalError as e:
-        raise sqlite3.OperationalError(f"Database error: {e}")
+    except Exception as e:
+        raise Exception(f"MySQL database error: {e}")
 def calculate_ecart_type_analysis(period: int = 14, limit: int = 1000, db_path: str | Path = None) -> dict:
     df = load_data_from_db(db_path, limit)
     
@@ -164,26 +220,29 @@ def calculate_ecart_type_analysis(period: int = 14, limit: int = 1000, db_path: 
     }
 
 
-def get_symbol_analysis(symbol: str, period: int = 14, limit: int = 1000, db_path: str | Path = None) -> dict:
-    df = load_data_from_db(db_path, limit)
-    
-    if df.height == 0:
+def get_symbol_analysis(symbol: str, period: int = 14, limit: int = 1000) -> dict:
+    """
+    Get écart-type analysis for a specific symbol using MySQL.
+    """
+    try:
+        # Load data directly for the specific symbol using MySQL client
+        df = load_symbol_data(symbol=symbol, limit=limit)
+
+        if df.height == 0:
+            return {
+                "success": False,
+                "message": f"No data found for symbol {symbol}",
+                "data": None
+            }
+        
+        # Calculate écart-type analysis
+        results = build_ecart_type(df, period=period)
+    except Exception as e:
         return {
             "success": False,
-            "message": "No data available",
+            "message": f"Database error: {str(e)}",
             "data": None
         }
-    
-    symbol_df = df.filter(pl.col("symbol") == symbol.upper())
-    
-    if symbol_df.height == 0:
-        return {
-            "success": False,
-            "message": f"No data found for symbol {symbol}",
-            "data": None
-        }
-    
-    results = build_ecart_type(symbol_df, period=period)
     
     if results.height == 0:
         return {

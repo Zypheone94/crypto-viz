@@ -244,11 +244,11 @@ export class TrendingNowComponent implements OnInit, OnDestroy {
         }
 
         const top = [...this.data]
-          .sort((a, b) => (Math.abs(b.delta_pct ?? 0) - Math.abs(a.delta_pct ?? 0)) || ((b.value ?? 0) - (a.value ?? 0)))
+          .sort((a, b) => (Math.abs(b.delta_pct) - Math.abs(a.delta_pct)) || (b.value - a.value))
           .slice(0, this.limit);
 
         const labels = top.map((t) => t.source);
-        const valuesPct = top.map((t) => t.delta_pct ?? 0);
+        const valuesPct = top.map((t) => t.delta_pct);
 
         const bgColors = valuesPct.map((v) =>
           v > 0 ? 'rgba(0, 200, 83, 0.6)' : v < 0 ? 'rgba(229, 57, 53, 0.6)' : 'rgba(158, 158, 158, 0.5)'

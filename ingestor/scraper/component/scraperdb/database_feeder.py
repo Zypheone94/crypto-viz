@@ -1,4 +1,3 @@
-import math
 import mysql.connector
 from pathlib import Path
 import time
@@ -90,30 +89,46 @@ def process_feed_article(df: pd.DataFrame) -> None:
         for _, row in df.iterrows():
             data = row.to_dict()
 
+            # Auto-add new symbols to the symbol table if they don't exist
             if data["symbol"] not in existing_symbols:
-                print(f"Symbol {data['symbol']} inexistant, article ignoré")
-                continue
+                try:
+                    cursor.execute("INSERT IGNORE INTO symbol (symbol) VALUES (%s)", (data["symbol"],))
+                    existing_symbols.add(data["symbol"])
+                    print(f"Symbol {data['symbol']} ajouté automatiquement")
+                except Exception as e:
+                    print(f"Erreur lors de l'ajout du symbol {data['symbol']}: {e}")
+                    continue
 
             if data["id"] in existing_ids:
                 print(f"Article {data['id']} déjà présent, ignoré")
                 continue
 
-            cursor.execute("""
-                INSERT INTO article(
-                    id, fetched_at, url, symbol, name, price, market_cap, volume_24h, coin_circulating
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                data["id"],
-                data["fetched_at"],
-                data["url"],
-                data["symbol"],
-                data["name"],
-                data["price"],
-                data["market_cap"],
-                data["volume_24h"],
-                data["coin_circulating"],
-            ))
-            insert_count += 1
+            try:
+                cursor.execute("""
+                    INSERT INTO article(
+                        id, fetched_at, url, symbol, name, price, market_cap, volume_24h, coin_circulating
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                        fetched_at = VALUES(fetched_at),
+                        price = VALUES(price),
+                        market_cap = VALUES(market_cap),
+                        volume_24h = VALUES(volume_24h),
+                        coin_circulating = VALUES(coin_circulating)
+                """, (
+                    data["id"],
+                    data["fetched_at"],
+                    data["url"],
+                    data["symbol"],
+                    data["name"],
+                    data["price"],
+                    data["market_cap"],
+                    data["volume_24h"],
+                    data["coin_circulating"],
+                ))
+                insert_count += 1
+            except Exception as e:
+                print(f"Erreur lors de l'insertion de l'article {data['id']}: {e}")
+                continue
 
         con.commit()
         print(f"Insertion terminée : {insert_count} articles insérés")
@@ -156,22 +171,39 @@ def process_feed_delta(df: pd.DataFrame) -> None:
         cursor.execute("SELECT symbol FROM symbol")
         existing_symbols = {row[0] for row in cursor.fetchall()}
 
+        # Auto-add missing symbols for delta processing
+        for symbol in df["symbol"].unique():
+            if symbol not in existing_symbols:
+                try:
+                    cursor.execute("INSERT IGNORE INTO symbol (symbol) VALUES (%s)", (symbol,))
+                    existing_symbols.add(symbol)
+                    print(f"Symbol {symbol} ajouté automatiquement pour delta")
+                except Exception as e:
+                    print(f"Erreur lors de l'ajout du symbol {symbol} pour delta: {e}")
+
         df = df[df["symbol"].isin(existing_symbols)]
 
         insert_count = 0
         for _, row in df.iterrows():
-            cursor.execute("""
-                INSERT INTO delta(symbol, date_start, date_end, window_label, delta, delta_pct)
-                VALUES(%s, %s, %s, %s, %s, %s)
-            """, (
-                row["symbol"],
-                str(row["window_start"]),
-                str(row["window_end"]),
-                "1h",
-                row["delta"],
-                row["delta_pct"]
-            ))
-            insert_count += 1
+            try:
+                cursor.execute("""
+                    INSERT INTO delta(symbol, date_start, date_end, window_label, delta, delta_pct)
+                    VALUES(%s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                        delta = VALUES(delta),
+                        delta_pct = VALUES(delta_pct)
+                """, (
+                    row["symbol"],
+                    str(row["window_start"]),
+                    str(row["window_end"]),
+                    "1h",
+                    row["delta"],
+                    row["delta_pct"]
+                ))
+                insert_count += 1
+            except Exception as e:
+                print(f"Erreur lors de l'insertion du delta pour {row['symbol']}: {e}")
+                continue
 
         con.commit()
         print(f"Delta insérés : {insert_count}")

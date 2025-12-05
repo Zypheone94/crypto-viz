@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { catchError, map, Observable, of } from 'rxjs';
+import { catchError, map, Observable, of, timeout, retry } from 'rxjs';
 import { environment } from '../../../env';
 
 import { TimeSeriesParams, TimeSeriesResponse } from '../shared/interface/timeSeries-interface';
@@ -13,6 +13,9 @@ export class ApiService {
   public baseUrl = environment.production
     ? `http://api:${environment.apiPort}`
     : `http://localhost:${environment.apiPort}`;
+
+  // API timeout in milliseconds (30 seconds for slow database queries)
+  private readonly API_TIMEOUT = 30000;
 
   constructor(private http: HttpClient) {}
 
@@ -67,7 +70,18 @@ export class ApiService {
     const httpParams = new HttpParams().set('limit', String(limit));
     return this.http
       .get<any>(`${this.baseUrl}/api/market/home`, { params: httpParams })
-      .pipe(map((payload) => this.extractResponse(payload)));
+      .pipe(
+        timeout(this.API_TIMEOUT),
+        retry(1), // Retry once on failure
+        map((payload) => this.extractResponse(payload)),
+        catchError((error) => {
+          console.error('Home dashboard API error:', error);
+          if (error.name === 'TimeoutError') {
+            throw new Error('Le serveur met trop de temps à répondre. Réessayez plus tard.');
+          }
+          throw error;
+        })
+      );
   }
 
   getMarketTrending(params: { window: string; limit?: number }): Observable<TrendingItem[]> {
@@ -78,8 +92,19 @@ export class ApiService {
       .get<any>(`${this.baseUrl}/api/market/trending`, { params: httpParams })
       .pipe(
         map((payload) => {
-          const data = this.extractResponse<{ trending?: TrendingItem[] }>(payload);
-          return data?.trending ?? [];
+          const response = this.extractResponse(payload);
+          // Handle nested structure: response.data.trending or response.trending
+          if (response?.data?.trending) {
+            return response.data.trending;
+          }
+          if (response?.trending) {
+            return response.trending;
+          }
+          if (Array.isArray(response)) {
+            return response;
+          }
+          console.warn('Unexpected trending payload shape:', response);
+          return [];
         })
       );
   }
@@ -108,7 +133,8 @@ export class ApiService {
     if (params?.date_to) {
       httpParams = httpParams.set('date_to', params.date_to);
     }
-    if (symbol) {
+    if (symbol && !symbol) {
+      // This won't execute, but keeping for general endpoint compatibility
       httpParams = httpParams.set('symbol', symbol);
     }
 
@@ -116,10 +142,15 @@ export class ApiService {
     return this.http
       .get(`${this.baseUrl}${endpoint}`, { params: httpParams })
       .pipe(
-        map((payload) => this.extractResponse(payload)),
-        catchError((error) => {
+        map((payload) => {
+          const response = this.extractResponse(payload);
+          // Return the response directly - it may contain warnings or data
+          return response;
+        }),
+        catchError(error => {
           console.error('Error fetching écart-type data:', error);
-          throw error; // Re-throw error instead of returning mock data
+          // Re-throw error so component can handle it
+          throw error;
         })
       );
   }
@@ -164,7 +195,7 @@ export class ApiService {
       .pipe(
         catchError((error) => {
           console.error('Error fetching RSI analysis:', error);
-          return of(this.mockRsiData());
+          return of({ status: 'error', message: 'Failed to fetch RSI analysis' });
         })
       );
   }
@@ -198,7 +229,7 @@ export class ApiService {
       .pipe(
         catchError((error) => {
           console.error('Error fetching symbol RSI analysis:', error);
-          return of(this.mockSymbolRsiData(symbol));
+          return of(error);
         })
       );
   }

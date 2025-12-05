@@ -29,10 +29,10 @@ def load_data_from_db(symbol: str | None = None, limit: int = 10000) -> pd.DataF
                                       price_change, target]
     """
     con = mysql.connector.connect(
-        host="host.docker.internal",
-        user="ingestor_user",
-        password="password123",
-        database="ingestor"
+        host=os.getenv("MYSQL_HOST", "host.docker.internal"),
+        user=os.getenv("MYSQL_USER", "root"),
+        password=os.getenv("MYSQL_PASSWORD", ""),
+        database=os.getenv("MYSQL_DATABASE", "ingestor")
     )
     
     where_clause = ""
