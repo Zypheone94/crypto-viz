@@ -38,7 +38,9 @@ dependencies = [
     "loguru",
     "polars",
     "pika",
-    "mysql-connector-python"
+    "mysql-connector-python",
+    "scikit-learn",
+    "numpy"
 ]
 
 

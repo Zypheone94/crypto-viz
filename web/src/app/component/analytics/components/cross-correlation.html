@@ -1,0 +1,92 @@
+<div class="correlation-container">
+    <!-- Controls -->
+    <div class="controls">
+        <div class="control-group">
+            <label for="symbol">Symbole</label>
+            <select id="symbol" [(ngModel)]="selectedSymbol" [disabled]="loadingSymbols">
+                <option *ngFor="let s of symbols" [value]="s.symbol">
+                    {{ s.symbol }} ({{ s.data_points }} points)
+                </option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label for="maxLag">Lag max</label>
+            <input id="maxLag" type="number" [(ngModel)]="maxLag" min="1" max="50" class="lag-input">
+        </div>
+
+        <button class="analyze-btn" (click)="analyze()" [disabled]="loading || !selectedSymbol">
+            <span *ngIf="!loading">Analyser</span>
+            <span *ngIf="loading">Chargement...</span>
+        </button>
+    </div>
+
+    <!-- Error message -->
+    <div *ngIf="error" class="error-message">
+        {{ error }}
+    </div>
+
+    <!-- Results -->
+    <div *ngIf="result" class="results">
+        <!-- Summary Card -->
+        <div class="summary-card">
+            <div class="summary-header">
+                <h3>{{ result.symbol }}</h3>
+                <span class="strength-badge" [ngClass]="getStrengthClass(result.strength)">
+                    {{ result.strength }}
+                </span>
+            </div>
+
+            <div class="summary-stats">
+                <div class="stat">
+                    <span class="stat-label">Lag optimal</span>
+                    <span class="stat-value">{{ result.optimal_lag }}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Corrélation max</span>
+                    <span class="stat-value">{{ result.max_correlation | number:'1.4-4' }}</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Points de données</span>
+                    <span class="stat-value">{{ result.data_points }}</span>
+                </div>
+            </div>
+
+            <p class="interpretation">{{ result.interpretation }}</p>
+        </div>
+
+        <!-- Correlation Chart -->
+        <div class="chart-container" *ngIf="chartData.length > 0">
+            <h4>Corrélations par lag</h4>
+            <div class="bar-chart">
+                <div class="chart-axis">
+                    <span>+1</span>
+                    <span>0</span>
+                    <span>-1</span>
+                </div>
+                <div class="bars-container">
+                    <div class="bar-wrapper" *ngFor="let item of chartData">
+                        <div class="bar-positive" *ngIf="item.correlation >= 0">
+                            <div class="bar" [style.height.%]="getBarHeight(item.correlation)"
+                                [style.background-color]="getBarColor(item.correlation)">
+                            </div>
+                        </div>
+                        <div class="bar-negative" *ngIf="item.correlation < 0">
+                            <div class="bar" [style.height.%]="getBarHeight(item.correlation)"
+                                [style.background-color]="getBarColor(item.correlation)">
+                            </div>
+                        </div>
+                        <span class="bar-label">{{ item.lag }}</span>
+                    </div>
+                </div>
+            </div>
+            <p class="chart-legend">Lag (périodes)</p>
+        </div>
+    </div>
+
+    <!-- Empty state -->
+    <div *ngIf="!result && !loading && !error" class="empty-state">
+        <p>Sélectionnez un symbole et cliquez sur "Analyser" pour voir la corrélation croisée entre le volume et le
+            prix.</p>
+    </div>
+</div>
